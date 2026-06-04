@@ -1,0 +1,2651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Latency Numbers Every Programmer Should Know (1990 – 2026)</title>
+<style>
+  /* -------------------------------------------------------------- */
+  /* Design system                                                   */
+  /* -------------------------------------------------------------- */
+  :root {
+    color-scheme: dark;
+
+    /* Surfaces */
+    --bg-0: #0a0c12;
+    --bg-1: #10131c;
+    --bg-2: #161a25;
+    --bg-3: #1d2230;
+    --border: #232a3b;
+    --border-strong: #2f3852;
+
+    /* Foreground */
+    --fg: #e8ecf3;
+    --fg-muted: #98a2b3;
+    --fg-dim: #6b7280;
+
+    /* Accent (used sparingly: hero number, focus rings) */
+    --accent: #5eead4;
+    --accent-soft: rgba(94, 234, 212, 0.12);
+
+    /* Category accents */
+    --cat-cpu: #c084fc;       /* violet — silicon */
+    --cat-cpu-bg: rgba(192, 132, 252, 0.12);
+    --cat-memory: #60a5fa;    /* blue — DRAM */
+    --cat-memory-bg: rgba(96, 165, 250, 0.12);
+    --cat-network: #4ade80;   /* green — wires */
+    --cat-network-bg: rgba(74, 222, 128, 0.12);
+    --cat-storage: #fbbf24;   /* amber — spinning rust + flash */
+    --cat-storage-bg: rgba(251, 191, 36, 0.12);
+
+    /* Type */
+    --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+                 "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+                 "Liberation Mono", monospace;
+
+    /* Spacing scale (4px base) */
+    --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+    --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+    --s-12: 48px; --s-16: 64px;
+
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 16px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(94, 234, 212, 0.08), transparent 60%),
+      radial-gradient(800px 400px at 5% 5%, rgba(192, 132, 252, 0.06), transparent 60%),
+      var(--bg-0);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection { background: var(--accent-soft); color: var(--fg); }
+
+  .container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: var(--s-6) var(--s-6) var(--s-12);
+  }
+
+  /* -------------------------------------------------------------- */
+  /* Header                                                          */
+  /* -------------------------------------------------------------- */
+  .hero {
+    margin-bottom: var(--s-5);
+  }
+  .hero .eyebrow {
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-bottom: var(--s-2);
+  }
+  .hero h1 {
+    margin: 0 0 var(--s-2);
+    font-size: clamp(24px, 3vw, 32px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+  .hero p {
+    margin: 0;
+    max-width: 820px;
+    color: var(--fg-muted);
+    font-size: 14px;
+  }
+  .hero p a { color: var(--fg); text-decoration: none; border-bottom: 1px solid var(--border-strong); }
+  .hero p a:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* -------------------------------------------------------------- */
+  /* Year scrubber                                                   */
+  /* -------------------------------------------------------------- */
+  .scrubber {
+    position: sticky;
+    top: var(--s-2);
+    z-index: 10;
+    margin: var(--s-4) 0 var(--s-4);
+    padding: var(--s-3) var(--s-5);
+    background: rgba(16, 19, 28, 0.88);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: var(--s-5);
+    align-items: center;
+  }
+  .year-display {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--s-3);
+    min-width: 0;
+  }
+  .year-display .year-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 110px;
+  }
+  .year-display .year {
+    font-family: var(--font-mono);
+    font-size: 34px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    transition: color 200ms ease;
+  }
+  /* Subtle pulse to white when the year text changes; reverts back to
+     accent as the .changed class is removed. */
+  .year-display .year.changed { color: var(--fg); }
+  .year-display .era {
+    font-size: 10px;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-weight: 600;
+  }
+  /* Media-player-style play/pause control next to the year. The same
+     <button> swaps between play and pause glyphs via aria-pressed. */
+  .play-btn {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-2);
+    color: var(--accent);
+    padding: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, background 0.15s ease,
+                border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .play-btn:hover {
+    border-color: var(--accent);
+    background: rgba(94, 234, 212, 0.08);
+    box-shadow: 0 4px 14px rgba(94, 234, 212, 0.25);
+  }
+  .play-btn:active { transform: scale(0.95); }
+  .play-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .play-btn svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
+  .play-btn .pause-icon { display: none; }
+  .play-btn[aria-pressed="true"] {
+    background: var(--accent);
+    color: var(--bg-0);
+    border-color: var(--accent);
+    box-shadow: 0 4px 14px rgba(94, 234, 212, 0.45);
+  }
+  .play-btn[aria-pressed="true"] .play-icon { display: none; }
+  .play-btn[aria-pressed="true"] .pause-icon { display: inline; }
+
+  /* Settings gear lives next to the play button. Smaller and lower
+     contrast than play -- it's a secondary control, not the primary
+     action. The popover anchors below it and floats above the
+     scrubber's sticky background. */
+  .play-settings-wrap { position: relative; flex-shrink: 0; }
+  .settings-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--fg-dim);
+    padding: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, background 0.15s ease,
+                border-color 0.15s ease, color 0.15s ease;
+  }
+  .settings-btn:hover {
+    border-color: var(--border-strong);
+    color: var(--fg);
+  }
+  .settings-btn:active { transform: scale(0.95); }
+  .settings-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .settings-btn[aria-expanded="true"] {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .settings-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  /* The settings wrap sits at the left edge of the scrubber row, so the
+     popover anchors to the LEFT of the gear and grows rightward over
+     the slider area (otherwise right:0 would clip past the page edge). */
+  .play-settings {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 0;
+    right: auto;
+    min-width: 260px;
+    background: var(--bg-1);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    padding: var(--s-3) var(--s-4);
+    z-index: 20;
+    font-family: var(--font-mono);
+    color: var(--fg);
+  }
+  .play-settings[hidden] { display: none; }
+  .play-settings .settings-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s-3);
+    margin-bottom: var(--s-3);
+  }
+  .play-settings .settings-row:last-child { margin-bottom: 0; }
+  .play-settings .settings-row > label {
+    color: var(--fg-muted);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    min-width: 52px;
+    flex-shrink: 0;
+  }
+  .play-settings input[type="range"] {
+    flex: 1;
+    accent-color: var(--accent);
+    cursor: pointer;
+    min-width: 0;
+  }
+  .play-settings .settings-value {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+    min-width: 38px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .play-settings .toggle-row {
+    cursor: pointer;
+    color: var(--fg);
+    font-size: 12px;
+  }
+  .play-settings .toggle-row input[type="checkbox"] {
+    accent-color: var(--accent);
+    cursor: pointer;
+    margin: 0;
+  }
+  .play-settings .toggle-row span {
+    color: var(--fg);
+  }
+
+  .scrubber-controls {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  /* The slider-stack keeps the range input and the preset bubble strip
+     in the same horizontal coordinate system. Both have the same width
+     so a bubble positioned at e.g. left: 27.78% lines up with the
+     slider thumb's position at year 2000. */
+  .slider-stack {
+    position: relative;
+    width: 100%;
+  }
+
+  /* Custom range styling */
+  input[type=range].year-slider {
+    display: block;
+    width: 100%;
+    height: 24px;
+    background: transparent;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+  }
+  input[type=range].year-slider:focus { outline: none; }
+  input[type=range].year-slider::-webkit-slider-runnable-track {
+    height: 4px;
+    background: linear-gradient(90deg,
+      var(--cat-cpu) 0%,
+      var(--cat-memory) 33%,
+      var(--cat-network) 66%,
+      var(--cat-storage) 100%);
+    border-radius: 2px;
+  }
+  input[type=range].year-slider::-moz-range-track {
+    height: 4px;
+    background: linear-gradient(90deg,
+      var(--cat-cpu) 0%, var(--cat-memory) 33%,
+      var(--cat-network) 66%, var(--cat-storage) 100%);
+    border-radius: 2px;
+  }
+  input[type=range].year-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--fg);
+    border: 3px solid var(--bg-0);
+    margin-top: -9px;
+    box-shadow: 0 4px 14px rgba(94, 234, 212, 0.35);
+    cursor: grab;
+    transition: transform 0.12s ease;
+  }
+  input[type=range].year-slider::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.15); }
+  input[type=range].year-slider::-moz-range-thumb {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--fg); border: 3px solid var(--bg-0);
+    box-shadow: 0 4px 14px rgba(94, 234, 212, 0.35);
+    cursor: grab;
+  }
+
+  .presets {
+    position: relative;
+    height: 28px;
+    margin-top: var(--s-2);
+    /* overflow:visible so 1990/2026 bubbles can extend half-off the edges,
+       matching the slider thumb's behavior at min/max. */
+  }
+  .presets button {
+    position: absolute;
+    top: 6px;
+    transform: translateX(-50%);
+    font: 500 11px/1 var(--font-mono);
+    color: var(--fg-muted);
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    padding: 4px 9px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-variant-numeric: tabular-nums;
+    transition: all 0.15s ease;
+  }
+  /* Tick connecting each bubble up to the slider track. */
+  .presets button::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: -7px;
+    width: 1px;
+    height: 6px;
+    background: var(--border-strong);
+    transform: translateX(-50%);
+  }
+  .presets button:hover {
+    color: var(--fg);
+    background: var(--bg-3);
+    border-color: var(--border-strong);
+    z-index: 1;
+  }
+  .presets button.active {
+    background: var(--accent);
+    color: var(--bg-0);
+    border-color: var(--accent);
+    z-index: 2;
+  }
+  .presets button.active::before {
+    background: var(--accent);
+  }
+
+  /* -------------------------------------------------------------- */
+  /* Insight card                                                    */
+  /* -------------------------------------------------------------- */
+  .insight {
+    margin: 0 0 var(--s-5);
+    padding: var(--s-3) var(--s-5);
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--s-3);
+    transition: opacity 120ms ease;
+  }
+  /* Dip opacity while swapping innerHTML so the text crossfades when
+     the insight content actually changes (typically on era boundaries). */
+  .insight.dimming { opacity: 0.35; }
+  .insight .icon {
+    font: 600 10px/14px var(--font-mono);
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 2px 7px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .insight .body {
+    color: var(--fg);
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+  .insight .body strong { color: var(--accent); font-weight: 600; }
+  .insight .body em { color: var(--fg-muted); font-style: normal; }
+
+  /* -------------------------------------------------------------- */
+  /* Legend (above categories grid)                                  */
+  /* -------------------------------------------------------------- */
+  .legend {
+    margin: 0 0 var(--s-2) 0;
+    padding: 8px var(--s-3);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--s-4);
+    align-items: center;
+    font: 500 12px/1 var(--font-mono);
+    color: var(--fg-muted);
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  /* The legend swatches inherit their size from the per-box-type .block
+     rules below — same size as the squares users will see in the grid,
+     so the legend teaches the size-as-scale mapping by example. */
+  .legend > span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend b { color: var(--fg); font-weight: 600; }
+  .legend-title {
+    color: var(--fg-dim);
+    font-family: var(--font-sans);
+    font-weight: 500;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-right: var(--s-2);
+  }
+
+  /* -------------------------------------------------------------- */
+  /* Categories                                                      */
+  /* -------------------------------------------------------------- */
+  #categories {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--s-4);
+  }
+  .category { min-width: 0; }
+  .category-header {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    margin-bottom: var(--s-2);
+    padding: 0 var(--s-3);
+  }
+  /* Lucide-style outline icons (cpu / memory-stick / globe / hard-drive),
+     tinted to the category color via currentColor. The icon replaces the
+     old colored dot — one element does both jobs (recognition + color cue),
+     which reads cleaner at the small header scale. */
+  .category-header .category-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .category-header .category-icon svg {
+    width: 100%;
+    height: 100%;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .category-header h2 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fg);
+  }
+
+  /* Metric rows */
+  .metrics {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .metric {
+    display: grid;
+    /* Fixed 150 px blocks column so 10 ms-squares per row exactly fits
+       (10 × 14 px + 9 × 1 px gap = 149 px), preserving Colin Scott's
+       "10 small = 1 large" relationship for the largest box type.
+       Smaller box types fit proportionally more per row -- ~12 us10,
+       ~16 us100, ~25 ns -- so tall metrics like WAN (130 ms-blocks)
+       collapse from ~22 rows down to ~13. */
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(96px, auto)
+      150px;
+    gap: var(--s-3);
+    /* Top-align the three columns so the label and number stay put as
+       the blocks grid grows or shrinks during scrubbing -- otherwise the
+       text would float up/down with every block-height change, which
+       reads as more visual shifting than the blocks themselves. */
+    align-items: start;
+    padding: 8px var(--s-4);
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s ease;
+    min-height: 32px;
+  }
+  .metric:last-child { border-bottom: none; }
+  .metric:hover { background: var(--bg-2); }
+  .metric.unavailable { opacity: 0.32; }
+
+  .metric .name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--fg);
+    line-height: 1.3;
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .metric .name .badge {
+    font: 600 9px/1 var(--font-mono);
+    color: var(--cat-storage);
+    background: var(--cat-storage-bg);
+    border: 1px solid var(--cat-storage);
+    padding: 2px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  /* Inline destination-city dropdown for the WAN row. Reads as a
+     typographic affordance ("CA ↔ Netherlands ▾") rather than a form
+     control: minimal chrome, custom chevron, and a subtle hover border
+     so it's still discoverable as interactive. */
+  .metric .name .city-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    font: inherit;
+    line-height: 1.3;
+    padding: 1px 18px 1px 6px;
+    margin-left: -2px;
+    border-radius: 4px;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none' stroke='%2398a2b3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M2 3.5l3 3 3-3'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 5px center;
+    transition: border-color 150ms ease, background-color 150ms ease;
+  }
+  .metric .name .city-select:hover {
+    border-color: var(--border-strong);
+    background-color: var(--bg-2);
+  }
+  .metric .name .city-select:focus {
+    outline: none;
+    border-color: var(--border-strong);
+  }
+  .metric .name .city-select:focus-visible {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+  /* Restore native menu styling for the open list itself: in dark mode,
+     transparent backgrounds inside the <option> popup look broken. */
+  .metric .name .city-select option {
+    background: var(--bg-2);
+    color: var(--fg);
+  }
+
+  .metric .value {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--fg);
+    text-align: right;
+    white-space: nowrap;
+    transition: color 150ms ease;
+  }
+  /* Brief accent flash when the rendered value+unit text changes. */
+  .metric .value.changed { color: var(--accent); }
+  .metric .value .unit {
+    color: var(--fg);
+    font-weight: 500;
+    font-size: 12px;
+    margin-left: 3px;
+  }
+
+  /* Block grid (replaces the bar visualization).
+     Each metric has a static box type. Block colors:
+       ns    = grey  (1 ns each)
+       us100 = blue  (100 ns each)
+       us10  = green (10 µs each)
+       ms    = red   (1 ms each)
+     Block SIZES are roughly log-spaced (5 / 8 / 11 / 14 px) so the
+     square dimension itself hints at the unit's scale — a "1 ns" square
+     is visibly smaller than a "1 ms" square even before reading the
+     legend. */
+  .metric .blocks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1px;
+    width: 150px;
+    align-content: flex-start;
+    /* min-height is set per-box-type below: reserves at least two rows
+       of vertical space (sized to the row's block dimension) so rows
+       with few blocks don't visually collapse as the year scrubs. The
+       grid's align-items: start keeps this column top-aligned, so the
+       label/number stay anchored even when many block rows render. */
+  }
+  .metric .blocks .block {
+    flex-shrink: 0;
+    /* Opacity-only fade keeps drag visually calm: scale or transform
+       on every render reads as jitter when input fires at 60+ Hz.
+       width still transitions for the trailing fractional block.
+       CSS transitions are interruptible, so rapid drags just retarget
+       the in-flight transition. */
+    transition: opacity 100ms linear, width 100ms linear;
+  }
+  /* Diff-driven add/remove states wired up by buildBlocks(). Both
+     entering and removing render at opacity 0 so a mid-animation
+     cancel reads as a clean reverse. */
+  .metric .blocks .block.entering,
+  .metric .blocks .block.removing {
+    opacity: 0;
+  }
+  /* Per-box-type square dimension + color. Sizes step by +3 px per
+     two-decade unit jump, giving roughly log-sized visual scaling. */
+  .block.ns    { background: #6b7280; width:  5px; height:  5px; border-radius: 1px; }
+  .block.us100 { background: #3b82f6; width:  8px; height:  8px; border-radius: 1px; }
+  .block.us10  { background: #22c55e; width: 11px; height: 11px; border-radius: 2px; }
+  .block.ms    { background: #ef4444; width: 14px; height: 14px; border-radius: 2px; }
+  /* Per-box-type min-height: 2 rows + 1 px gap = 2 × side + 1 px. */
+  .metric .blocks.box-ns    { min-height: 11px; }
+  .metric .blocks.box-us100 { min-height: 17px; }
+  .metric .blocks.box-us10  { min-height: 23px; }
+  .metric .blocks.box-ms    { min-height: 29px; }
+
+  /* Truncation indicator for very long block strips (e.g. WAN). */
+  .metric .blocks .more {
+    font: 700 9px/8px var(--font-mono);
+    color: var(--fg-muted);
+    align-self: center;
+    margin-left: 4px;
+    height: 8px;
+  }
+  /* Tint the "+N" overflow tail with the same hue as the squares in
+     that row, so the eye reads it as "more of the same" rather than as
+     a separate piece of UI chrome. Colors mirror .block.{ns,us100,...}
+     above. */
+  .metric .blocks.box-ns    .more { color: #6b7280; }
+  .metric .blocks.box-us100 .more { color: #3b82f6; }
+  .metric .blocks.box-us10  .more { color: #22c55e; }
+  .metric .blocks.box-ms    .more { color: #ef4444; }
+
+  .category[data-cat="cpu"]     .category-icon { color: var(--cat-cpu); }
+  .category[data-cat="memory"]  .category-icon { color: var(--cat-memory); }
+  .category[data-cat="network"] .category-icon { color: var(--cat-network); }
+  .category[data-cat="storage"] .category-icon { color: var(--cat-storage); }
+
+  /* Per-category "Why these changed" expandable info box. Each category
+     header is a <summary>; clicking anywhere on the header toggles the
+     prose body below. The chevron rotates 90deg on open, and the body
+     adopts the category's accent color as a left-edge stripe so the
+     visual association with that panel's metrics is immediate. */
+  .cat-info summary {
+    list-style: none;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: background 150ms ease;
+  }
+  .cat-info summary::-webkit-details-marker { display: none; }
+  .cat-info summary:hover { background: var(--bg-2); }
+  .cat-info summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .cat-info-cue {
+    margin-left: auto;
+    font: 500 11px var(--font-mono);
+    letter-spacing: 0.04em;
+    color: var(--fg-dim);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    transition: color 150ms ease;
+  }
+  .cat-info summary:hover .cat-info-cue { color: var(--fg); }
+  .cat-info-chev {
+    width: 10px;
+    height: 10px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 150ms ease;
+  }
+  .cat-info[open] .cat-info-chev { transform: rotate(90deg); }
+
+  .cat-info-body {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-left-width: 3px;
+    border-radius: var(--radius);
+    padding: var(--s-3) var(--s-4);
+    margin: var(--s-2) 0;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--fg-muted);
+  }
+  .category[data-cat="cpu"]     .cat-info-body { border-left-color: var(--cat-cpu); }
+  .category[data-cat="memory"]  .cat-info-body { border-left-color: var(--cat-memory); }
+  .category[data-cat="network"] .cat-info-body { border-left-color: var(--cat-network); }
+  .category[data-cat="storage"] .cat-info-body { border-left-color: var(--cat-storage); }
+  .cat-info-body p { margin: 0 0 var(--s-2); }
+  .cat-info-body p:last-child { margin-bottom: 0; }
+  .cat-info-body strong { color: var(--fg); font-weight: 600; }
+  .cat-info-body em { color: var(--fg); font-style: italic; }
+
+  /* -------------------------------------------------------------- */
+  /* Footer                                                          */
+  /* -------------------------------------------------------------- */
+  footer {
+    margin-top: var(--s-12);
+    padding-top: var(--s-6);
+    border-top: 1px solid var(--border);
+    color: var(--fg-muted);
+    font-size: 13.5px;
+    line-height: 1.65;
+  }
+  footer .credits-section {
+    background: var(--bg-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--s-4) var(--s-5);
+    margin-bottom: var(--s-3);
+  }
+  footer .credits-section h3 {
+    margin: 0 0 var(--s-3);
+    font-weight: 600;
+    color: var(--fg);
+    font-size: 15px;
+  }
+  footer .credits-section h4 {
+    margin: var(--s-4) 0 var(--s-2);
+    font-weight: 600;
+    color: var(--fg);
+    font-size: 13px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  footer .credits-section h4:first-of-type { margin-top: var(--s-2); }
+  footer .credits-section ul,
+  footer .credits-section ol { margin: var(--s-2) 0 0 var(--s-5); padding: 0; }
+  footer .credits-section li { margin-bottom: var(--s-2); }
+  footer .credits-section p { margin: 0 0 var(--s-2); }
+  footer .credits-section code {
+    background: var(--bg-3);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.85em;
+    color: var(--fg);
+  }
+  footer a { color: var(--accent); text-decoration: none; border-bottom: 1px dotted var(--accent); }
+  footer a:hover { background: var(--accent-soft); }
+
+  .caveat {
+    margin-top: var(--s-6);
+    padding: var(--s-4) var(--s-5);
+    background: var(--bg-1);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--fg-muted);
+    font-size: 13px;
+  }
+  .caveat strong { color: var(--fg); }
+
+  /* -------------------------------------------------------------- */
+  /* Responsive                                                      */
+  /* -------------------------------------------------------------- */
+  @media (max-width: 1100px) {
+    #categories { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 760px) {
+    .scrubber { grid-template-columns: 1fr; }
+    .metric {
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        "name   value"
+        "blocks blocks";
+      row-gap: var(--s-1);
+    }
+    .metric .name   { grid-area: name; }
+    .metric .value  { grid-area: value; }
+    .metric .blocks { grid-area: blocks; }
+  }
+
+  /* Honor user motion preferences. The scrub-driven transitions above
+     are nice-to-have polish, not essential signal, so turn them off
+     entirely for users who request reduced motion. */
+  @media (prefers-reduced-motion: reduce) {
+    .metric .blocks .block,
+    .metric .value,
+    .insight,
+    .year-display .year,
+    .cat-info-chev,
+    .cat-info-cue,
+    .cat-info summary {
+      transition: none !important;
+    }
+    .metric .blocks .block.entering,
+    .metric .blocks .block.removing {
+      opacity: 1;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header class="hero">
+    <div class="eyebrow">Interactive · 1990 — 2026</div>
+    <h1>Latency Numbers Every Programmer Should Know</h1>
+    <p>
+      An interactive update of Jeff Dean's famous list. Drag the slider to
+      watch how cache, memory, network, and storage latencies have evolved
+      &mdash; and where progress has stalled. Built on top of
+      <a href="https://colin-scott.github.io/personal_website/research/interactive_latency.html">Colin Scott's interactive timeline</a>,
+      with 2021&ndash;2026 numbers anchored to
+      <a href="https://omarish.com/latency-numbers-you-should-know">Omar Bohsali's 2026 reference</a>;
+      see <a href="#credits">credits &amp; methodology</a> for the full source list and notes on how figures were derived.
+      Questions, corrections, or suggestions? Contact
+      <a href="mailto:phil.bogle@databricks.com">Phil Bogle</a>.
+    </p>
+  </header>
+
+  <section class="scrubber" aria-label="Year selector">
+    <div class="year-display">
+      <div class="year-text">
+        <span class="year" id="yearValue">2026</span>
+        <span class="era" id="yearEra">AI / NVMe era</span>
+      </div>
+      <button type="button" class="play-btn" id="playBtn"
+              aria-pressed="false" aria-label="Play timeline"
+              title="Play timeline (animate slider through every year)">
+        <svg class="play-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M8 5v14l11-7z" />
+        </svg>
+        <svg class="pause-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 5h4v14H6zm8 0h4v14h-4z" />
+        </svg>
+      </button>
+      <div class="play-settings-wrap">
+        <button type="button" class="settings-btn" id="playSettingsBtn"
+                aria-haspopup="true" aria-expanded="false"
+                aria-controls="playSettings"
+                aria-label="Playback settings"
+                title="Playback settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+        <div class="play-settings" id="playSettings" role="dialog"
+             aria-label="Playback settings" hidden>
+          <div class="settings-row">
+            <label for="playSpeedRange">Speed</label>
+            <input type="range" id="playSpeedRange"
+                   min="0.4" max="2.5" step="0.1" value="1" />
+            <span class="settings-value" id="playSpeedLabel">1.0×</span>
+          </div>
+          <label class="settings-row toggle-row" for="loopCheckbox">
+            <input type="checkbox" id="loopCheckbox" />
+            <span>Loop at end</span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="scrubber-controls">
+      <div class="slider-stack">
+        <input type="range" class="year-slider" id="yearSlider"
+               min="1990" max="2026" step="0.1" value="2026"
+               aria-label="Year" />
+        <div class="presets" id="yearPresets"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="insight" id="insight" aria-live="polite">
+    <span class="icon">Insight</span>
+    <span class="body" id="insightBody"></span>
+  </section>
+
+  <div class="legend" aria-label="Block color legend">
+    <span class="legend-title">Each square below =</span>
+    <span><span class="block ns"></span><b>1 ns</b></span>
+    <span><span class="block us100"></span><b>100 ns</b></span>
+    <span><span class="block us10"></span><b>10 µs</b></span>
+    <span><span class="block ms"></span><b>1 ms</b></span>
+  </div>
+
+  <div id="categories"></div>
+
+  <footer>
+    <h2 id="credits" style="margin: 0 0 var(--s-4); font-size: 18px; color: var(--fg);">Credits</h2>
+    <p style="margin: 0 0 var(--s-5);">
+      None of the underlying numbers or formulas on this page are original.
+      Each piece is attributed below.
+    </p>
+
+    <section class="credits-section">
+      <h3>Sources</h3>
+
+      <h4>Original list (2002)</h4>
+      <ul>
+        <li>
+          <a href="http://norvig.com/21-days.html#answers">Jeff Dean &amp; Peter Norvig &mdash; "Numbers Everyone Should Know"</a>
+          &mdash; the canonical list of 2002-era latencies this page descends from.
+        </li>
+      </ul>
+
+      <h4>Code &amp; visual design (2012)</h4>
+      <ul>
+        <li>
+          <a href="https://colin-scott.github.io/personal_website/research/interactive_latency.html">Colin Scott &mdash; "Latency Numbers Every Programmer Should Know" (interactive, 2012)</a>
+          &mdash; the year-by-year extrapolation formulas
+          (<code>getCycle</code>, <code>getMemLatency</code>, <code>getNICTransmissionDelay</code>,
+          <code>getBusTransmissionDelay</code>, <code>getSSDLatency</code>,
+          <code>getSSDTransmissionDelay</code>, <code>getSeek</code>,
+          <code>getDiskTransmissionDelay</code>) are taken verbatim from
+          Colin's page with only cosmetic renaming. This page would not
+          exist without it.
+        </li>
+      </ul>
+
+      <h4>2021 &ndash; 2026 anchor values</h4>
+      <ul>
+        <li>
+          <a href="https://omarish.com/latency-numbers-you-should-know">Omar Bohsali &mdash; "Latency Numbers You Should Know in 2026" (May 2026)</a>
+          &mdash; primary source for every 2026 anchor (L1, L2, L3, branch
+          mispredict, mutex, DDR5 main memory, PCIe round trip, 100&nbsp;GbE /
+          InfiniBand ping-pong, Snappy/LZ4 1&nbsp;KB compress, 10&nbsp;GbE
+          2&nbsp;KB send, NVMe random read, 1&nbsp;MB sequential from
+          memory/NVMe/HDD, datacenter TCP RTT, HDD seek, US&nbsp;West &harr;
+          Europe RTT). Also the source of the human-scale-multiplier idea
+          this page adopts.
+        </li>
+        <li>
+          <a href="https://erickguan.me/2024/latency-values">Erick Guan &mdash; "Latency values for programmers in 2024"</a>
+          &mdash; primary independent cross-check on the modern hardware
+          numbers. Within 2&times; of this page on every bandwidth metric:
+          Zen 5 L1/L2 (0.7&nbsp;ns / 2.5&nbsp;ns), L3 (8&nbsp;ns), 1&nbsp;MB
+          from DDR5 memory (10&nbsp;&micro;s), 4K random NVMe read
+          (20&nbsp;&micro;s), 1&nbsp;MB from NVMe (100&nbsp;&micro;s), 1&nbsp;MB
+          from HDD (6&nbsp;ms). The closest agreement of any
+          independently-published source on the metrics where modern
+          hardware actually moved.
+        </li>
+        <li>
+          <a href="https://martinkalema.github.io/latency-numbers/">Martin Kalema &mdash; "Latency Numbers (2025 Update)"</a>
+          &mdash; despite the "2025 update" title, the underlying values
+          retain the 2010-era Jeff Dean / Google SRE / Thundergolfer
+          figures for every bandwidth-bound metric (1&nbsp;MB from memory
+          250&nbsp;&micro;s, 1&nbsp;MB from SSD 1&nbsp;ms, 1&nbsp;MB from HDD
+          20&nbsp;ms, SSD random read 100&nbsp;&micro;s). Used here only as
+          a sanity check on the orders of magnitude for caches,
+          small-packet network, and WAN.
+        </li>
+        <li>
+          <a href="https://www.krishnapatil.com/blog/latency-numbers-every-engineer-should-know">Krishna Patil &mdash; "Latency Numbers Every Engineer Should Know" (Nov 2025)</a>
+          &mdash; secondary cross-check; informed which new 2020s metrics
+          to surface.
+        </li>
+        <li>
+          <a href="https://github.com/thundergolfer/napkin-math">Jonathon Belotti &mdash; "Napkin Math"</a>
+          &mdash; PCIe Gen4/5 round-trip latency originates here.
+        </li>
+      </ul>
+
+      <h4>Real-measurement year anchors for eight plateaued metrics</h4>
+      <p style="margin: 0 0 var(--s-2);">
+        Colin Scott's exponential-growth formulas overshoot reality
+        starting around 2010 for the metrics whose underlying physics
+        plateaued: five are bandwidth-bound (HDD seek hit a mechanical
+        floor; NIC, DRAM, SSD, and HDD bandwidth grew much more slowly
+        than his formulas predict), one is coherency-bound (uncontended
+        mutex is dominated by the cache-line-bounce cost, which barely
+        tracks clock speed), one is geography-bound (CA &harr; NL
+        WAN RTT can shrink as cable routes get more direct, but it's
+        bounded by the speed of light in fiber), and one is
+        network-stack-bound (same-DC TCP RTT through the kernel network
+        stack improved with faster NICs and stack offloads but didn't
+        track Colin's exponential model). For these eight metrics, this
+        page replaces Colin's formulas with a piecewise-linear
+        interpolation through measured values at known years. See the
+        <code>REAL_VALUES</code> table in the page source for the
+        year/ns pairs and source attribution.
+      </p>
+      <ul>
+        <li><strong>network2k:</strong>
+          <a href="http://www.ethernetalliance.org/wp-content/uploads/2015/03/EthernetAlliance_Roadmap_whitepaper_FINAL-032015-2.pdf">Ethernet Alliance 2015 roadmap</a>,
+          <a href="https://www.arista.com/assets/data/pdf/10GigE_Whitepaper.pdf">Arista 10 GbE adoption whitepaper</a>,
+          <a href="https://www.lightwaveonline.com/business/market-research/article/14199458/100gbe-switch-port-shipments-top-10gbe-numbers-crehan-research">Crehan Research on 100 GbE shipments (2020)</a>.</li>
+        <li><strong>memMB:</strong>
+          <a href="https://www.servethehome.com/guide-ddr-ddr2-ddr3-ddr4-and-ddr5-bandwidth-by-generation/">ServeTheHome DDR generation guide</a>,
+          <a href="https://journal.panda.institute/memory-bandwidth">panda.institute memory-bandwidth article</a>,
+          <a href="http://ixbtlabs.com/articles2/ddr2-rmma/ddr2-rmma.html">ixbtlabs early DDR2 measurements</a>.</li>
+        <li><strong>ssdMB:</strong>
+          <a href="https://en.wikipedia.org/wiki/List_of_Intel_SSDs">Wikipedia "List of Intel SSDs"</a>,
+          <a href="https://download.semiconductor.samsung.com/resources/white-paper/Samsung_SSD_950_PRO_White_paper.pdf">Samsung 950 PRO whitepaper</a>,
+          <a href="https://download.semiconductor.samsung.com/resources/brochure/SAMSUNG_Memory_NVMe_Brochure_web.pdf">Samsung NVMe brochure</a>.</li>
+        <li><strong>seek:</strong>
+          <a href="https://en.wikipedia.org/wiki/Hard_disk_drive_performance_characteristics">Wikipedia HDD-performance characteristics</a>,
+          <a href="https://www.storagereview.com/review/seagate-barracuda-7200-9">StorageReview Seagate 7200.9</a>,
+          <a href="https://www.storagereview.com/review/hitachi-deskstar-7k500">StorageReview Hitachi 7K500</a>.</li>
+        <li><strong>diskMB:</strong>
+          <a href="https://goughlui.com/the-hard-disk-corner/hard-drive-performance-over-the-years/">Gough's Tech Zone "Hard Drive Performance Over the Years"</a>,
+          <a href="https://www.seagate.com/content/dam/seagate/migrated-assets/staticfiles/support/disc/manuals/desktop/Barracuda%207200.10/100402371k.pdf">Seagate Barracuda 7200.10 manual</a>.</li>
+      </ul>
+    </section>
+
+    <section class="credits-section">
+      <h3>What this page contributes</h3>
+      <ul>
+        <li>Wiring the above into a single self-contained HTML file with no external dependencies.</li>
+        <li>Extending Colin Scott's slider's 2020 endpoint to 2026.</li>
+        <li>Adding three "2020s" metrics not in Colin's original (L3 cache, PCIe round trip, 100&nbsp;GbE / InfiniBand ping-pong), ramped in starting in 2022.</li>
+        <li>Anchoring eight metrics whose underlying physics plateaued &mdash; NIC, DRAM, SSD, HDD seek, HDD bandwidth (bandwidth-bound), uncontended mutex (coherency-bound), CA&harr;NL WAN RTT (geography-bound), and same-DC TCP RTT (network-stack-bound) &mdash; to <em>real</em> measured values at known years instead of Colin's exponential extrapolations (see <code>REAL_VALUES</code>).</li>
+      </ul>
+
+      <h4>Methodology: how each year's value is computed</h4>
+      <p>
+        Every metric is computed by exactly one of three pipelines,
+        chosen per-metric based on whether Colin's 2002-vintage
+        exponential-growth formulas still track measured hardware in
+        2026. The function <code>metricsForYear(year)</code> in the
+        page source is the dispatcher.
+      </p>
+      <ol>
+        <li>
+          <strong>Colin's formulas, verbatim, for 1990&ndash;2020.</strong>
+          Metrics whose speed actually grew on Colin's predicted
+          schedule &mdash; <code>L1</code>, <code>L2</code>, branch
+          mispredict, DRAM cache-miss latency, Zippy/Snappy/LZ4
+          compression, NVMe random read &mdash; run through
+          <code>getCycle</code> / <code>getMemLatency</code> /
+          <code>getSSDLatency</code> / etc. unchanged from Colin's
+          page. The values shown for 1990&ndash;2020 on these rows
+          match the original interactive page bit-for-bit.
+        </li>
+        <li>
+          <strong>Linear blend from Colin's 2020 endpoint to Omar's 2026 anchor, for 2021&ndash;2026.</strong>
+          Colin's formulas extrapolated past 2020 keep doubling on
+          schedule, but Omar Bohsali's 2026 measurements show most
+          caches / memory / NVMe didn't double twice. For each
+          "Pipeline&nbsp;1" metric the page linearly interpolates:
+          <code>v(year)&nbsp;=&nbsp;lerp(colin(2020),&nbsp;omar_2026,&nbsp;(year&minus;2020)/6)</code>.
+        </li>
+        <li>
+          <strong>Piecewise-linear interpolation through real measurements for the eight plateaued metrics.</strong>
+          NIC bandwidth, DRAM sequential, SSD sequential, HDD seek,
+          HDD sequential bandwidth, uncontended mutex, CA&harr;NL WAN
+          RTT, and same-DC TCP RTT are bandwidth-, coherency-,
+          geography-, or network-stack-bound, so Colin's exponential
+          model overshoots reality starting around 2010. For these,
+          the page replaces Colin's formula <em>entirely</em> with
+          linear interpolation between published hardware measurements
+          at known years (1990 anchors included); see the
+          <code>REAL_VALUES</code> table in the page source for the
+          per-anchor values and citations.
+        </li>
+      </ol>
+
+      <h4>Where this page knowingly deviates from its primary sources</h4>
+      <ul>
+        <li>
+          <strong>HDD sequential at 2026: 5&nbsp;ms / MB, not Omar's 15&nbsp;ms / MB.</strong>
+          Omar's 15&nbsp;ms anchor matches archive-grade or SMR drives,
+          which are not what a programmer thinks of when reading "HDD."
+          Commodity 7200&nbsp;RPM HDDs (Seagate IronWolf, WD Red) sustain
+          ~200&nbsp;MB/s on the outer track &mdash; ~5&nbsp;ms for 1&nbsp;MB.
+          Wikipedia's HDD-performance article puts typical enterprise
+          2020s drives at 500+&nbsp;MB/s sustained.
+        </li>
+        <li>
+          <strong>WAN destination is user-selectable; values shown depend on the chosen city.</strong>
+          Colin's row is flat at 150&nbsp;ms; this page exposes five
+          west-coast-CA destinations through an inline dropdown
+          (New York, Netherlands, Tokyo, Singapore, Mumbai) and
+          interpolates each across measured anchor years. The default
+          CA&harr;NL curve trends from 180&nbsp;ms (2000) to 130&nbsp;ms
+          (2026), reflecting that long-haul transatlantic RTT dropped
+          as router queueing improved and direct submarine cables
+          (Marea 2018, Dunant 2021, Grace Hopper 2022) replaced older
+          multi-hop paths. The speed-of-light floor (~90&nbsp;ms over a
+          9,000&nbsp;km great-circle path) hasn't moved &mdash; only the
+          headroom above it has shrunk. Mumbai is the worst case at
+          ~230&nbsp;ms today because there is still no direct CA
+          submarine cable to India; traffic routes via Europe or
+          Singapore.
+        </li>
+        <li>
+          <strong>Same-DC TCP RTT trends 700&nbsp;&micro;s (2000) &rarr; 300&nbsp;&micro;s (2026)</strong>
+          instead of staying flat at Colin/Dean's 500&nbsp;&micro;s. The
+          2002 headline reflected 1&nbsp;GbE NICs and multi-hop
+          switching; intra-DC TCP has fallen with 10/25/100&nbsp;GbE
+          adoption, low-latency switches, and NIC offloads. The "100
+          GbE / InfiniBand ping-pong" row covers the kernel-bypass /
+          RDMA floor (~1.5&nbsp;&micro;s at 2026); this row is the
+          kernel-through-TCP figure that programmers actually see for
+          typical socket traffic.
+        </li>
+        <li>
+          <strong>Mutex labeled "uncontended."</strong> Jeff Dean's 2002
+          list said "mutex lock/unlock" without qualifier; under
+          contention the number is orders of magnitude larger. The
+          "uncontended" tag matches the underlying pthread fast-path
+          measurement that Omar 2026, Guan 2024, and Dean 2002 all
+          actually cite.
+        </li>
+        <li>
+          <strong>Mutex monotonicity: 50&nbsp;ns (2000) &rarr; 25&nbsp;ns (2005) &rarr; 20&nbsp;ns (2026).</strong>
+          Colin's <code>getCycle</code>-driven mutex value predicted a
+          steady decline through 2020, then his formula's extrapolated
+          2020 value (~14&nbsp;ns) was actually <em>faster</em> than
+          Omar's 2026 anchor (20&nbsp;ns), which would have made the row
+          regress as the user scrubbed forward. The real cost is
+          dominated by the cache-coherency-protocol round-trip, which
+          barely tracks clock speed; the one real inflection is the
+          early-2000s drop after LOCK&nbsp;CMPXCHG stopped requiring a
+          bus-wide lock on x86. We replaced Colin's formula with a
+          monotone curve through Dean&nbsp;2002 (25&nbsp;ns), Guan&nbsp;2024
+          (25&nbsp;ns), and Omar&nbsp;2026 (20&nbsp;ns).
+        </li>
+        <li>
+          <strong>Three 2020s metrics ramp in from <code>null</code>.</strong>
+          L3 cache, PCIe Gen4/5 round trip, and 100&nbsp;GbE / InfiniBand
+          ping-pong have no analogue in the 2002 list, so the page
+          shows "&mdash;" for them before 2022 and ramps them in over
+          2022&ndash;2026 to their Omar 2026 values. The cutover year is
+          a judgement call &mdash; PCIe Gen4 shipped in 2017, but it
+          didn't dominate datacenter NIC&harr;CPU paths until ~2022.
+        </li>
+      </ul>
+
+      <h4>Sanity checks the page is built against</h4>
+      <p>
+        Modern bandwidth-bound rows are double-checked against Erick
+        Guan (2024), which agrees with this page to within 2&times; on
+        every metric &mdash; he is the strongest independent
+        cross-check we found. Martin Kalema (2025) retains Jeff Dean's
+        2010-era bandwidth figures (250&nbsp;µs / MB from DRAM, 1&nbsp;ms
+        / MB from SSD, 20&nbsp;ms / MB from HDD), so he's only used as a
+        sanity check on caches, small-packet network, and WAN, where
+        he matches. Krishna Patil (2025) is a secondary cross-check
+        that informed which 2020s rows to surface (e.g. 4K random NVMe
+        as a distinct metric from "SSD random read"). Jonathon
+        Belotti's <em>Napkin Math</em> is the primary source for PCIe
+        Gen4/5 round-trip latency. Every <code>REAL_VALUES</code>
+        series is also asserted to be monotone in latency across its
+        anchor years, so scrubbing forward never shows a metric
+        "getting worse" purely from an interpolation artifact.
+      </p>
+    </section>
+
+    <div class="caveat">
+      <strong>Caveat:</strong> these are order-of-magnitude figures. Real
+      latencies depend on exact hardware, OS overhead, contention, and
+      payload size. Within-year values are linearly interpolated between
+      anchor points and are not independently measured.
+    </div>
+  </footer>
+</div>
+
+<script>
+//==================================================================
+// Latency Numbers Every Programmer Should Know (1990 - 2026)
+//
+// PROVENANCE / CREDITS
+// --------------------
+// This page is a remix; almost nothing here is original work.
+//
+//   * Original 2002 list:
+//       Jeff Dean & Peter Norvig
+//       http://norvig.com/21-days.html#answers
+//
+//   * Year-by-year extrapolation FORMULAS for 1990-2020:
+//       Colin Scott - "Latency Numbers Every Programmer Should Know"
+//       https://colin-scott.github.io/personal_website/research/interactive_latency.html
+//     The functions getCycle, getMemLatency, getNICTransmissionDelay,
+//     getBusTransmissionDelay, getSSDLatency, getSSDTransmissionDelay,
+//     getSeek, getDiskTransmissionDelay are taken verbatim from Colin's
+//     page with only cosmetic renaming. Inline source-of-doubling-rate
+//     citations Colin included (Berkeley AMP Camp, Pattersen, Micron,
+//     Bleak Flash FAST 2012, etc.) are preserved in comments.
+//
+//   * 2026 anchor values for ANCHORS_2026 below, and the "human scale"
+//     multiplier idea (1 ns of computer time = 1 second of human time):
+//       Omar Bohsali - "Latency Numbers You Should Know in 2026"
+//       https://omarish.com/latency-numbers-you-should-know
+//
+//   * 2024 / 2025 cross-checks. Erick Guan is the primary cross-check:
+//     within 2x of this page on every bandwidth metric (DDR5 1 MB,
+//     NVMe 1 MB, NVMe 4K random, HDD 1 MB). Kalema's "2025 update" is
+//     listed for completeness but retains the 2010-era Jeff-Dean
+//     values for those same bandwidth metrics, so it only matches on
+//     caches / small network / WAN.
+//       Erick Guan, "Latency values for programmers in 2024"
+//         https://erickguan.me/2024/latency-values
+//       Martin Kalema, "Latency Numbers (2025 Update)"
+//         https://martinkalema.github.io/latency-numbers/
+//       Krishna Patil, "Latency Numbers Every Engineer Should Know" (2025)
+//         https://www.krishnapatil.com/blog/latency-numbers-every-engineer-should-know
+//       Jonathon Belotti, "Napkin Math"
+//         https://github.com/thundergolfer/napkin-math
+//
+//   * Real-measurement year anchors for the eight metrics where Colin's
+//     formulas collide with physical reality: five bandwidth-bound
+//     (network2k, memMB, ssdMB, seek, diskMB), one coherency-bound
+//     (mutex), one geography-bound (wan, CA<->NL RTT), and one
+//     network-stack-bound (rtt, same-DC TCP RTT). See REAL_VALUES below
+//     for the year-by-year sources (Ethernet Alliance, ServeTheHome DDR
+//     guide, Wikipedia Intel SSDs, Samsung whitepapers, StorageReview
+//     archives, Gough's Tech Zone HDD history, Seagate product manuals;
+//     for mutex: Dean 2002 / Guan 2024 / Omar 2026; for wan:
+//     TeleGeography submarine cable map and Marea/Dunant/Grace Hopper
+//     press kits; for rtt: Dean 2002, AWS intra-AZ docs, Cloudflare
+//     blog posts, Omar 2026).
+//
+// ORIGINAL CONTRIBUTION OF THIS PAGE
+// ----------------------------------
+// 1. Packaging the above into one self-contained HTML file with no
+//    external dependencies.
+// 2. Extending the slider's 2020 endpoint to 2026 by linearly blending
+//    Colin's 2020 endpoint to the 2026 anchors (see metricsForYear()).
+// 3. Adding three 2020s-era metrics not in Colin's original
+//    (L3 cache, PCIe Gen4/5 round trip, 100 GbE/InfiniBand ping-pong),
+//    ramped in starting in 2022.
+// 4. Anchoring eight metrics whose underlying physics plateaued --
+//    network2k, memMB, ssdMB, seek, diskMB (bandwidth-bound), mutex
+//    (coherency-bound), wan (geography-bound), and rtt
+//    (network-stack-bound, same-DC TCP RTT) -- to real measured values
+//    at known years rather than Colin's exponential extrapolations,
+//    which predict unrealistic 2010s+ values. See REAL_VALUES below.
+//
+// METHODOLOGY (three pipelines, dispatched by metricsForYear):
+//   A) 1990-2020: Colin's getCycle / getMemLatency / getSSDLatency /
+//      etc., verbatim, for cache-bound and clock-bound metrics
+//      (L1, L2, branch, mem, zippy, ssdRand).
+//   B) 2021-2026: linear blend lerp(colin(2020), omar_2026, t) for
+//      those same metrics; t = (year - 2020) / 6.
+//   C) 1990-2026: piecewise-linear realValueAt(metric, year) for the
+//      eight plateaued metrics; Colin's formula is bypassed entirely.
+//
+// KNOWN DEVIATIONS FROM SOURCES (rationale in the in-page credits):
+//   - diskMB 2026 = 5 ms (not Omar's 15 ms, which assumes SMR/archive
+//     drives rather than commodity 7200 RPM HDDs).
+//   - wan: 180 ms -> 130 ms curve instead of Colin/Dean's flat 150 ms
+//     (real long-haul RTT has decreased as direct submarine cables
+//     replaced multi-hop paths; speed of light still ~90 ms floor).
+//   - mutex relabeled "uncontended" and routed through REAL_VALUES so
+//     Colin's extrapolated 2020 value (~14 ns) doesn't undershoot
+//     Omar's 2026 anchor (20 ns), which would otherwise regress as
+//     the user scrubs forward.
+//   - rtt (same-DC TCP RTT) routed through REAL_VALUES on a
+//     700 us -> 300 us curve instead of Colin/Dean's flat 500 us. The
+//     2002 headline matched 1 GbE NICs and multi-hop switching; modern
+//     intra-AZ TCP through the kernel is widely cited around
+//     100-300 us as NICs (10/25/100 GbE), low-latency switches, and
+//     stack offloads improved. The 100 GbE/InfiniBand ping-pong row
+//     covers the kernel-bypass / RDMA floor; this row is the
+//     kernel-TCP figure.
+//   - Three 2020s-era metrics (L3, pcie, rdma) are null before 2022.
+//==================================================================
+
+// ----- Data layer (Colin Scott's formulas, attributed above) -----
+
+// Destinations available in the wan-row dropdown. The wan row's
+// REAL_VALUES table is keyed by city; the default lands on the
+// historical CA <-> Netherlands curve so the row reads identically
+// to the pre-dropdown version until the user changes it.
+// Cities are listed roughly west-to-east by continent so the rendered
+// dropdown groups (using <optgroup>) read in geographic order from the
+// CA west-coast vantage. Within Asia, ordering is by typical RTT
+// (Tokyo nearest, Mumbai farthest).
+const CITIES = [
+  { id: "nyc",          name: "New York",     continent: "North America" },
+  { id: "saopaulo",     name: "São Paulo",    continent: "South America" },
+  { id: "netherlands",  name: "Netherlands",  continent: "Europe" },
+  { id: "johannesburg", name: "Johannesburg", continent: "Africa" },
+  { id: "tokyo",        name: "Tokyo",        continent: "Asia" },
+  { id: "singapore",    name: "Singapore",    continent: "Asia" },
+  { id: "mumbai",       name: "Mumbai",       continent: "Asia" },
+  { id: "sydney",       name: "Sydney",       continent: "Oceania" },
+];
+let selectedWanCityId = "netherlands";
+
+const shift = y => y - 1982;
+
+function getCycle(year) {
+  // Source: Colin Scott. Clock speed doubled every 2 years until ~2005,
+  // then plateaued at ~3 GHz.
+  if (year <= 2005) {
+    const a = 3e9 / Math.pow(2, shift(2005) * 0.5);
+    const b = Math.pow(2, 1 / 2);
+    const hz = a * Math.pow(b, shift(year));
+    return 1e9 / hz;
+  }
+  return 1e9 / 3e9;
+}
+function getMemLatency(year) {
+  // Source: Colin Scott. DRAM access decreased 7%/yr until ~2000, then
+  // stalled at ~100 ns.
+  if (year <= 2000) {
+    const b = 0.93;
+    const a = 100.0 / Math.pow(0.93, shift(2000));
+    return a * Math.pow(b, shift(year));
+  }
+  return 100;
+}
+function getNICTransmissionDelay(payloadBytes, year) {
+  // Source: Colin Scott. NIC bandwidth doubled every 2 years from
+  // 1 Gb/s in 2003.
+  const a = (125 * 1e6) / Math.pow(2, shift(2003) * 0.5);
+  const b = Math.pow(2, 1 / 2);
+  const bw = a * Math.pow(b, shift(year));
+  return payloadBytes / (bw / 1e9);
+}
+function getBusTransmissionDelay(payloadBytes, year) {
+  // Source: Colin Scott. DRAM bandwidth doubles every 3 yrs from
+  // 4 GB/s in 2001.
+  const a = 4e9 / Math.pow(2, shift(2001) * 0.33);
+  const b = Math.pow(2, 1 / 3);
+  const bw = a * Math.pow(b, shift(year));
+  return payloadBytes / (bw / 1e9);
+}
+function getSSDLatency(year) {
+  // Source: Colin Scott. Random read: 20 us in 2012, dropping 20x over
+  // 4.5 yrs, then flat.
+  if (year <= 2014) {
+    const a = 2e4 / Math.pow(1 / 20, shift(year) * 0.22);
+    const b = Math.pow(1 / 20, 1 / 4.5);
+    return a * Math.pow(b, shift(year));
+  }
+  return 16000;
+}
+function getSSDTransmissionDelay(payloadBytes, year) {
+  // Source: Colin Scott. SSD bandwidth doubles every 3 yrs from
+  // 3 GB/s in 2012.
+  const a = 3e9 / Math.pow(2, shift(2012) * 0.33);
+  const b = Math.pow(2, 1 / 3);
+  const bw = a * Math.pow(b, shift(year));
+  return payloadBytes / (bw / 1e9);
+}
+function getSeek(year) {
+  // Source: Colin Scott. HDD seek + rotational halves every 10 yrs from
+  // ~10 ms in 2000.
+  const a = 1e7 / Math.pow(0.5, shift(2000) * 0.1);
+  const b = Math.pow(0.5, 0.1);
+  return a * Math.pow(b, shift(year));
+}
+function getDiskTransmissionDelay(payloadBytes, year) {
+  // Source: Colin Scott. HDD bandwidth doubled every 2 yrs pre-2002,
+  // every 5 yrs after.
+  let a, b;
+  if (year <= 2002) {
+    a = 1e8 / Math.pow(2, shift(2002) * 0.5);
+    b = Math.pow(2, 1 / 2);
+  } else {
+    a = 1e8 / Math.pow(2, shift(2002) * 0.2);
+    b = Math.pow(2, 1 / 5);
+  }
+  const bw = a * Math.pow(b, shift(year));
+  return payloadBytes / (bw / 1e9);
+}
+
+const NETWORK_PAYLOAD = 2e3; // 2 KB
+const MB_PAYLOAD = 1e6;      // 1 MB
+
+function colinValues(year) {
+  const cyc = getCycle(year);
+  return {
+    L1: 3 * cyc,
+    L2: 13 * cyc,
+    branch: 10 * cyc,
+    mutex: 50 * cyc,
+    mem: getMemLatency(year),
+    zippy: 6000 * cyc,
+    network2k: getNICTransmissionDelay(NETWORK_PAYLOAD, year),
+    ssdRand: getSSDLatency(year),
+    memMB: getBusTransmissionDelay(MB_PAYLOAD, year),
+    rtt: 500000,
+    ssdMB: getSSDTransmissionDelay(MB_PAYLOAD, year),
+    seek: getSeek(year),
+    diskMB: getDiskTransmissionDelay(MB_PAYLOAD, year),
+    wan: 1.5e8,
+  };
+}
+
+// ----- 2026 anchors -----
+// Primary source: Omar Bohsali, https://omarish.com/latency-numbers-you-should-know
+const ANCHORS_2026 = {
+  L1: 1,             // Omar 2026
+  L2: 3,             // Omar 2026 (Guan 2024: 2.5 ns Zen 5)
+  L3: 15,            // Omar 2026; new in 2020s
+  branch: 3,         // Omar 2026
+  mutex: 20,         // Omar 2026 (Guan 2024: 25 ns uncontended)
+  mem: 80,           // Omar 2026 (DDR5; Guan 2024: 70 ns)
+  zippy: 2000,       // Omar 2026 (Snappy/LZ4 on 1 KB)
+  network2k: 2000,   // Omar 2026 (2 KB over 10 GbE)
+  pcie: 200,         // Omar 2026 / Napkin Math
+  rdma: 1500,        // Omar 2026 (100 GbE / InfiniBand same rack)
+  ssdRand: 15000,    // Omar 2026 (NVMe random read)
+  memMB: 20000,      // Omar 2026 (1 MB seq from DDR5)
+  rtt: 300000,       // Omar 2026 (same-DC TCP RTT)
+  ssdMB: 150000,     // Omar 2026 (1 MB seq from NVMe Gen4)
+  seek: 5000000,     // Omar 2026 (7200 RPM HDD avg access)
+  diskMB: 5000000,   // Typical commodity 7200 RPM HDD at ~200 MB/s sustained.
+                     // (Overrides Omar's 15 ms anchor, which assumed slower
+                     //  archive/SMR drives. WikiPedia HDD-performance: typical
+                     //  enterprise 2020s disks sustain >500 MB/s; commodity
+                     //  consumer 7200 RPM Seagate IronWolf / WD Red are
+                     //  ~200-280 MB/s outer track.)
+  wan: 1.3e8,        // Omar 2026 (US West <-> Europe)
+};
+const NEW_METRIC_START_YEAR = 2022;
+const ANCHORS_NEW_2022 = { L3: 25, pcie: 250, rdma: 3000 };
+
+// REAL_VALUES: year-anchored real-world measurements (ns) for the
+// eight metrics where Colin Scott's formulas collide with physical
+// reality. Five are bandwidth-bound (NIC, DRAM, SSD bandwidth, HDD
+// seek, HDD bandwidth), one is coherency-bound (uncontended mutex),
+// one is geography-bound (CA<->NL WAN round trip), and one is
+// network-stack-bound (same-DC TCP RTT). Linear interpolation between
+// consecutive years.
+//
+// Each metric is sourced from documented hardware of the period:
+//
+//   network2k: 2 KB transmission over commodity datacenter NIC.
+//     Sources: Ethernet Alliance roadmap (2015); Arista 10 GbE whitepaper;
+//     Broadcom 10 GbE adoption (2009-2013); Lightwave on 100 GbE (2020).
+//
+//   memMB: 1 MB sequential read at sustained DDR bandwidth, dual-channel
+//     mainstream desktop (~60 % of theoretical peak per panda.institute
+//     real-world tests). Sources: ServeTheHome DDR generation guide;
+//     panda.institute memory-bandwidth article; ixbtlabs DDR2 tests.
+//
+//   ssdMB: 1 MB sequential read. Sources: Wikipedia "List of Intel SSDs"
+//     (X25-M 250 MB/s in 2008; SSD 510 500 MB/s in 2011); Samsung 950 PRO
+//     whitepaper (2.5 GB/s NVMe Gen3 in 2015); Samsung NVMe brochure
+//     (3.5 GB/s Gen3 by 2018; 7 GB/s Gen4 by 2020).
+//
+//   seek: HDD average random access (seek + rotational latency).
+//     7200 RPM has been near a mechanical floor since ~2010 (4.17 ms
+//     rotational + ~4-5 ms seek). Source: WikiPedia HDD-performance
+//     characteristics; StorageReview historical reviews (Seagate 7200.9,
+//     Hitachi 7K500 both ~13 ms full access in 2005).
+//
+//   diskMB: 1 MB sequential read at sustained HDD bandwidth.
+//     Sources: Gough's Tech Zone HDD-performance-over-the-years (20-30
+//     MB/s in 2000, 100-130 MB/s by 2010, 200-280 MB/s by 2020); Seagate
+//     Barracuda 7200.10 manual (78 MB/s outer track, 2006); WikiPedia
+//     "typical enterprise 2020s >500 MB/s sustained".
+//
+//   mutex: uncontended pthread / std::mutex lock+unlock (user-space
+//     atomic CAS + memory fence; no kernel transition). The cost has been
+//     dominated by the cache-coherency-protocol round-trip ever since
+//     LOCK CMPXCHG dropped its full bus-lock in the early 2000s, so the
+//     floor barely moves with clock speed. Sources: Jeff Dean 2002
+//     "Numbers Everyone Should Know" (25 ns); Erick Guan 2024 (25 ns
+//     uncontended); Omar Bohsali 2026 (20 ns).
+//
+//   wan: US West <-> Europe one-way packet round trip. Speed of light
+//     in fiber (~200,000 km/s) sets a theoretical floor near 90 ms over
+//     a 9,000 km great-circle path; observed RTT shrinks slowly from
+//     ~180 ms in 2000 to ~130 ms today as routers/queues get faster and
+//     submarine cables get more direct (Marea 2018, Dunant 2021, Grace
+//     Hopper 2022). Sources: TeleGeography Submarine Cable Map;
+//     Wondernetwork TransAtlantic latency archives; Cloudflare and
+//     Wikipedia cable system articles; Omar Bohsali 2026 (130 ms).
+//
+//   rtt: same-DC TCP round trip through the kernel network stack. Jeff
+//     Dean's 2002 "500 µs" headline reflected 1 GbE NICs, multi-hop
+//     switching, and software-only stacks. Modern hyperscaler intra-AZ
+//     TCP is widely cited at ~100 µs (e.g. AWS intra-AZ docs,
+//     Cloudflare blog posts), with kernel-bypass / RDMA an order of
+//     magnitude below that (the "100 GbE / InfiniBand ping-pong" row
+//     covers that floor; this row is the kernel-TCP figure). Anchored
+//     to Omar Bohsali 2026's 300 µs as a conservative typical-loaded
+//     value at the top of the modern range.
+const REAL_VALUES = {
+  network2k: {
+    // Pure transmission time + typical kernel-stack overhead; the
+    // bandwidth has only modestly improved past 10 GbE for commodity
+    // workloads because the host stack itself is the bottleneck.
+    1990: 2000000,   // 10 Mbps Ethernet shared bus (2 KB / 1.25 MB/s)
+    1995: 1500000,   // 10 Mbps still dominant; 100 Mbps "Fast Ethernet" emerging
+    2000: 16000,     // 1 GbE server-class (2 KB / 125 MB/s)
+    2005: 16000,     // 1 GbE commodity in datacenter
+    2010: 8000,      // 1 GbE typical; 10 GbE adoption begins
+    2015: 2000,      // 10 GbE mainstream in DC with stack overhead
+    2020: 2000,      // 10 GbE typical; 25/100 GbE in hyperscale
+    2026: 2000,      // Omar 2026
+  },
+  memMB: {
+    1990: 40000000,  // 386 / 486 + FPM DRAM, ~25 MB/s real-world sustained
+    1995: 8000000,   // Pentium + EDO DRAM, ~125 MB/s sustained
+    2000: 1500000,   // PC133 SDR single-channel, ~700 MB/s sustained
+    2005: 250000,    // DDR-400 / DDR2-533 dual, ~4 GB/s sustained
+    2010: 75000,     // DDR3-1333 dual, ~13 GB/s sustained
+    2015: 50000,     // DDR4-2133 dual, ~21 GB/s sustained
+    2020: 30000,     // DDR4-3200 dual, ~33 GB/s sustained
+    2026: 20000,     // Omar 2026 / DDR5-5600 dual, ~60 GB/s sustained
+  },
+  ssdMB: {
+    // No commodity SSDs before 2008 -- realValueAt() returns null for
+    // years earlier than the first anchor, leaving the row "unavailable".
+    2008: 4000000,   // Intel X25-M, 250 MB/s SATA II
+    2012: 2000000,   // SATA III SSDs, 500 MB/s
+    2015: 400000,    // NVMe Gen3 launch (Samsung 950 PRO), 2.5 GB/s
+    2018: 286000,    // NVMe Gen3 mature (970 PRO), 3.5 GB/s
+    2020: 200000,    // NVMe Gen4 launch (980 PRO), 5 GB/s
+    2026: 150000,    // Omar 2026 / Gen4 typical commodity, ~7 GB/s
+  },
+  seek: {
+    1990: 17000000,  // Early-90s 5400/3600 RPM IDE drives ~17 ms full access
+    1995: 13000000,  // Mid-90s 5400-7200 RPM transition ~13 ms full access
+    2000: 10000000,  // 7200 RPM IDE typical full random access (~10 ms)
+    2005: 9000000,   // StorageReview 7K500/7200.9 measured ~9 ms seek
+    2010: 8000000,   // Modest mechanical improvement
+    2015: 7000000,
+    2020: 6000000,
+    2026: 5000000,   // Omar 2026
+  },
+  diskMB: {
+    1990: 700000000, // ~1.5 MB/s commodity ESDI / early IDE (1 MB ~ 700 ms)
+    1995: 150000000, // ~7 MB/s mid-90s IDE / EIDE drives
+    2000: 40000000,  // ~25 MB/s typical 7200 RPM IDE
+    2005: 15000000,  // ~65 MB/s outer track (Hitachi 7K500, Seagate 7200.9)
+    2010: 10000000,  // ~100 MB/s typical desktop 7200 RPM
+    2015: 7000000,   // ~150 MB/s
+    2020: 5000000,   // ~200 MB/s modern 7200 RPM consumer
+    2026: 5000000,   // ~200 MB/s commodity (see ANCHORS_2026 note)
+  },
+  mutex: {
+    // Coherency-bound: the floor is the cache-line bounce + memory
+    // fence cost, which barely tracks clock speed. The one real
+    // inflection is mid-2000s, when LOCK CMPXCHG stopped requiring a
+    // bus-wide lock on commodity x86. Pre-Pentium x86 paid an even
+    // larger penalty since LOCK CMPXCHG itself didn't exist until 486;
+    // earlier code relied on coarser kernel-level synchronization.
+    1990: 300,       // 386 / 486 era: no LOCK CMPXCHG, kernel-mediated locks
+    1995: 100,       // Pentium-era LOCK CMPXCHG with full bus lock
+    2000: 50,        // pre-LOCK-optimization commodity x86 + LinuxThreads
+    2005: 25,        // post-LOCK-optimization + NPTL/futex (Dean 2002: 25)
+    2010: 22,        // measured pthread fast path on x86 server
+    2015: 22,        // unchanged: floor is coherency, not clock
+    2020: 20,        // modern x86 / ARM uncontended atomic + fence
+    2026: 20,        // Omar 2026 anchor
+  },
+  wan: {
+    // Geography-bound: speed of light in fiber is ~200,000 km/s, so each
+    // destination has its own great-circle floor relative to a CA
+    // datacenter. Above that floor, two things shrink over time:
+    // router/queuing overhead per hop, and the cable routes themselves
+    // as direct submarine cables replace multi-hop paths. The page
+    // exposes the destination as a user-selectable dropdown; values
+    // below are typical one-way RTTs from a CA west-coast DC.
+    nyc: {
+      // ~4,100 km great-circle, all-terrestrial fiber. Floor ~40 ms.
+      // Backbones improved meaningfully from 1990 (frame relay,
+      // multi-hop SONET) through 2010+ (consolidated IP backbones,
+      // private clouds with direct fiber).
+      1990: 95000000,
+      2000: 80000000,
+      2010: 75000000,
+      2020: 70000000,
+      2026: 65000000,
+    },
+    saopaulo: {
+      // ~10,500 km great-circle but routes usually leg through Miami
+      // and down the Atlantic coast. Floor ~110 ms. Early-90s relied
+      // partly on satellite + Americas-1 (1994); modern Monet (2017),
+      // BRUSA (2018), and AMX-1 give direct fiber.
+      1990: 350000000,
+      1995: 280000000,
+      2000: 240000000,
+      2010: 200000000,
+      2020: 185000000,
+      2026: 180000000,
+    },
+    netherlands: {
+      // CA <-> NL: ~9,000 km great-circle, fiber floor ~90 ms.
+      // 1990: TAT-8 (1988, first transatlantic fiber) era, many hops.
+      // 2026: post-Marea/Dunant/Grace Hopper direct routes.
+      1990: 300000000,
+      1995: 220000000,
+      2000: 180000000,
+      2005: 170000000,
+      2010: 150000000,
+      2015: 145000000,
+      2020: 140000000,
+      2024: 130000000,
+      2026: 130000000, // Omar 2026 anchor (CA <-> Europe)
+    },
+    johannesburg: {
+      // ~16,500 km great-circle, but with no direct CA -> Africa cable
+      // the path snakes via Europe (and a transcontinental terrestrial
+      // hop within Africa). Effective routed distance is closer to
+      // 20,000+ km. SAT-2 (1993) then SAT-3 (2002) brought South Africa
+      // online; WACS (2012), EASSy, and ACE later improved capacity but
+      // not great-circle distance. Among the cities listed, the worst
+      // RTT from CA.
+      1990: 500000000,
+      1995: 450000000,
+      2000: 380000000,
+      2010: 320000000,
+      2020: 290000000,
+      2026: 280000000,
+    },
+    tokyo: {
+      // ~8,300 km transpacific, fiber floor ~80 ms. TPC-3 (1989) was
+      // the first transpacific fiber; modern PC-1 / Unity / FASTER /
+      // JUPITER cables shave another ~15 ms vs early 90s.
+      1990: 200000000,
+      2000: 160000000,
+      2010: 130000000,
+      2020: 115000000,
+      2026: 110000000,
+    },
+    singapore: {
+      // ~13,500 km, fiber floor ~135 ms. Typically routed
+      // CA -> Tokyo/Hong Kong -> Singapore; modern direct cables
+      // (SJC, JUPITER, ECHO) reduced multi-hop overhead.
+      1990: 280000000,
+      2000: 230000000,
+      2010: 200000000,
+      2020: 185000000,
+      2026: 175000000,
+    },
+    mumbai: {
+      // ~13,800 km but no direct CA -> India cable; routed via Europe
+      // or Singapore, paying for the transcontinental detour.
+      1990: 360000000,
+      2000: 290000000,
+      2010: 260000000,
+      2020: 240000000,
+      2026: 230000000,
+    },
+    sydney: {
+      // ~12,000 km transpacific via Hawaii. Early-90s used TPC-3 +
+      // Tasman (multi-hop, low capacity). Southern Cross (2000-2001)
+      // brought direct CA -> Sydney fiber; Hawaiki (2018) added
+      // capacity and shaved another ~10-20 ms by routing more
+      // directly. Floor ~120 ms.
+      1990: 250000000,
+      1995: 220000000,
+      2000: 200000000,
+      2010: 180000000,
+      2020: 160000000,
+      2026: 150000000,
+    },
+  },
+  rtt: {
+    // Same-DC TCP RTT through the kernel network stack. Jeff Dean's
+    // 2002 "500 µs" headline matched 1 GbE NICs, software stacks, and
+    // multi-hop switching of the era. Modern hyperscaler intra-AZ
+    // TCP is widely cited at ~100 µs, with kernel-bypass / RDMA an
+    // order of magnitude below that (covered by the separate "100 GbE
+    // / InfiniBand ping-pong" row, not this one).
+    1990: 2000000,   // 10 Mbps shared Ethernet + slow stacks, ~2 ms
+    1995: 1500000,   // 10 Mbps still dominant; faster CPUs + stacks
+    2000: 700000,    // 1 GbE NICs, multi-hop, software-only stack
+    2005: 550000,
+    2010: 450000,    // 10 GbE arriving in DCs
+    2015: 380000,    // 10 GbE mainstream, cut-through switching
+    2020: 320000,    // 25 GbE mainstream, NIC offloads
+    2024: 300000,    // lands at Omar's 2026 anchor
+    2026: 300000,    // Omar 2026 (same-DC TCP RTT)
+  },
+};
+
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// Look up (and linearly interpolate) a real-measurement value at the
+// requested year from a year-keyed table. Returns null for years
+// before the table's earliest anchor (e.g. ssdMB before 2008).
+function lookupYearTable(table, year) {
+  const years = Object.keys(table).map(Number).sort((a, b) => a - b);
+  if (year < years[0]) return null;
+  if (year >= years[years.length - 1]) return table[years[years.length - 1]];
+  for (let i = 0; i < years.length - 1; i++) {
+    const lo = years[i], hi = years[i + 1];
+    if (year >= lo && year <= hi) {
+      return lerp(table[lo], table[hi], (year - lo) / (hi - lo));
+    }
+  }
+  return null;
+}
+
+function realValueAt(metric, year) {
+  return lookupYearTable(REAL_VALUES[metric], year);
+}
+
+// wan is nested: REAL_VALUES.wan is a city-keyed map of year-keyed
+// tables, since the page exposes the WAN destination as a
+// user-selectable dropdown.
+function wanValueAt(cityId, year) {
+  const table = REAL_VALUES.wan[cityId];
+  if (!table) return null;
+  return lookupYearTable(table, year);
+}
+
+function metricsForYear(year) {
+  // For the eight metrics where Colin's formulas collide with physical
+  // reality (see REAL_VALUES table above), we use measured values at
+  // known years and interpolate linearly between them. Everything
+  // else still uses Colin's formulas for 1990-2020 and a linear blend
+  // to ANCHORS_2026 for 2021-2026.
+  const real = {
+    network2k: realValueAt("network2k", year),
+    memMB:     realValueAt("memMB",     year),
+    ssdMB:     realValueAt("ssdMB",     year),
+    seek:      realValueAt("seek",      year),
+    diskMB:    realValueAt("diskMB",    year),
+    mutex:     realValueAt("mutex",     year),
+    wan:       wanValueAt(selectedWanCityId, year),
+    rtt:       realValueAt("rtt",       year),
+  };
+
+  if (year <= 2020) {
+    const v = colinValues(year);
+    return {
+      L1: v.L1, L2: v.L2, L3: null, branch: v.branch, mutex: real.mutex,
+      mem: v.mem, zippy: v.zippy,
+      network2k: real.network2k,
+      pcie: null, rdma: null,
+      ssdRand: year >= 2008 ? v.ssdRand : null,
+      memMB: real.memMB,
+      rtt: real.rtt,
+      ssdMB: real.ssdMB,
+      seek: real.seek,
+      diskMB: real.diskMB,
+      wan: real.wan,
+    };
+  }
+  // 2021 - 2026: blend Colin 2020 -> ANCHORS_2026 for the metrics Colin
+  // models accurately; REAL_VALUES already covers the others.
+  const t = (year - 2020) / 6;
+  const v2020 = colinValues(2020);
+  const out = {
+    network2k: real.network2k,
+    memMB: real.memMB,
+    ssdMB: real.ssdMB,
+    seek: real.seek,
+    diskMB: real.diskMB,
+    mutex: real.mutex,
+    wan: real.wan,
+    rtt: real.rtt,
+  };
+  for (const k of ["L1","L2","branch","mem","zippy","ssdRand"]) {
+    out[k] = lerp(v2020[k], ANCHORS_2026[k], t);
+  }
+  if (year >= NEW_METRIC_START_YEAR) {
+    const tN = (year - NEW_METRIC_START_YEAR) / (2026 - NEW_METRIC_START_YEAR);
+    out.L3 = lerp(ANCHORS_NEW_2022.L3, ANCHORS_2026.L3, tN);
+    out.pcie = lerp(ANCHORS_NEW_2022.pcie, ANCHORS_2026.pcie, tN);
+    out.rdma = lerp(ANCHORS_NEW_2022.rdma, ANCHORS_2026.rdma, tN);
+  } else {
+    out.L3 = out.pcie = out.rdma = null;
+  }
+  return out;
+}
+
+//==================================================================
+// Display layer (original to this page)
+//==================================================================
+
+// Per-category linear scales are FIXED across all years so scrubbing the
+// year slider only changes bar widths, not axes. Each axisMaxNs is tuned
+// for modern (2020s) values; older years that exceed it clip to 100% and
+// get an overflow chevron on the bar.
+//
+// Sanity check (max value over 1990-2026 vs chosen axisMaxNs):
+//   cpu:     mutex 1990  3.0 μs  vs  axis  30 ns   -> overflow x100
+//   memory:  memMB 1990  3.0 ms  vs  axis  30 μs   -> overflow x100
+//   network: wan         150 ms  vs  axis  150 ms  -> no overflow ever
+//   storage: diskMB 1990 640 ms  vs  axis  20 ms   -> overflow x32
+// Each metric is bound to a single "box type" the way Colin Scott's
+// original does — one block always represents the same amount of time, so
+// scrubbing the year only changes block COUNT, never the unit. Box types
+// were picked so the typical 2010–2020 value falls in 1–50 blocks; older
+// or larger values produce more blocks (e.g. WAN ≈ 130 red squares).
+//
+//   ns     – grey  – 1 ns per block
+//   100ns  – blue  – 100 ns per block
+//   10us   – green – 10 µs per block
+//   ms     – red   – 1 ms per block
+// Inline SVGs from Lucide (MIT licensed, https://lucide.dev/) — outline
+// style matches the play/pause icon already in this page. They're tinted
+// with the per-category CSS variable via stroke: currentColor so dark
+// mode and per-category color cues come for free.
+//   cpu:     "cpu"          — chip square with edge pins
+//   memory:  "memory-stick" — DIMM with parallel contact lines
+//   network: "globe"        — globe with latitude line
+//   storage: "hard-drive"   — drive with platter-edge LEDs
+const CAT_ICON_CPU = `<svg viewBox="0 0 24 24" aria-hidden="true">
+  <rect x="4" y="4" width="16" height="16" rx="2"/>
+  <rect x="9" y="9" width="6" height="6"/>
+  <path d="M15 2v2"/><path d="M15 20v2"/>
+  <path d="M2 15h2"/><path d="M2 9h2"/>
+  <path d="M20 9h2"/><path d="M20 15h2"/>
+  <path d="M9 2v2"/><path d="M9 20v2"/>
+</svg>`;
+const CAT_ICON_MEMORY = `<svg viewBox="0 0 24 24" aria-hidden="true">
+  <path d="M6 19v-3"/><path d="M10 19v-3"/>
+  <path d="M14 19v-3"/><path d="M18 19v-3"/>
+  <path d="M8 11V9"/><path d="M12 11V9"/><path d="M16 11V9"/>
+  <path d="M2 15h20"/>
+  <path d="M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v1.1a2 2 0 0 0 0 3.837V17a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-5.1a2 2 0 0 0 0-3.837Z"/>
+</svg>`;
+const CAT_ICON_NETWORK = `<svg viewBox="0 0 24 24" aria-hidden="true">
+  <circle cx="12" cy="12" r="10"/>
+  <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+  <path d="M2 12h20"/>
+</svg>`;
+const CAT_ICON_STORAGE = `<svg viewBox="0 0 24 24" aria-hidden="true">
+  <line x1="22" x2="2" y1="12" y2="12"/>
+  <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+  <line x1="6" x2="6.01" y1="16" y2="16"/>
+  <line x1="10" x2="10.01" y1="16" y2="16"/>
+</svg>`;
+
+const CATEGORIES = [
+  {
+    id: "cpu",
+    name: "On the CPU",
+    icon: CAT_ICON_CPU,
+    info: `
+      <p>Single-thread frequency hit a wall around 2005 (end of Dennard scaling) and
+        CPUs have lived in the 3&ndash;5&nbsp;GHz band ever since &mdash; that's why
+        L1, L2, branch mispredict, and mutex look so flat.</p>
+      <p>The two real shifts: <strong>L3 cache</strong> didn't exist in 2002's
+        two-level hierarchies (Nehalem put it on-die in 2008 at ~10&ndash;15&nbsp;ns),
+        and <strong>mutex</strong> fell to the cache-coherence-round-trip floor once
+        LOCK&nbsp;CMPXCHG lost its bus-wide lock.</p>
+    `,
+    metrics: [
+      { id: "L1",     name: "L1 cache reference",      boxType: "ns" },
+      { id: "branch", name: "Branch mispredict",       boxType: "ns" },
+      { id: "L2",     name: "L2 cache reference",      boxType: "ns" },
+      { id: "L3",     name: "L3 cache reference",      boxType: "ns", newMetric: true },
+      { id: "mutex",  name: "Mutex lock / unlock (uncontended)", boxType: "ns" },
+    ],
+  },
+  {
+    id: "memory",
+    name: "Memory & local I/O",
+    icon: CAT_ICON_MEMORY,
+    info: `
+      <p>DRAM <strong>bandwidth</strong> grew ~16&times; since 2000 (DDR-400 &rarr;
+        DDR5-6400) while single-access <strong>latency</strong> barely moved &mdash;
+        bandwidth scales with bus width and burst length, latency is bounded by
+        capacitor charge time and signal propagation.</p>
+      <p>That's why <strong>Read 1 MB from memory</strong> falls ~75&times; while
+        <strong>Main memory reference</strong> stays around 80&ndash;100&nbsp;ns.
+        <strong>PCIe</strong> joined the chart in the 2020s once GPU and NVMe traffic
+        made its ~200&nbsp;ns round-trip programmer-visible.</p>
+    `,
+    metrics: [
+      { id: "mem",   name: "Main memory reference (DRAM)",                     boxType: "100ns" },
+      { id: "pcie",  name: "PCIe round trip",         boxType: "100ns", newMetric: true },
+      { id: "zippy", name: "Compress 1 KB with Zippy / Snappy / LZ4",          boxType: "100ns" },
+      { id: "memMB", name: "Read 1 MB sequentially from memory",               boxType: "10us"  },
+    ],
+  },
+  {
+    id: "network",
+    name: "Network",
+    icon: CAT_ICON_NETWORK,
+    info: `
+      <p>Same-DC TCP RTT fell from ~700&nbsp;µs to ~300&nbsp;µs as DCs moved from
+        1&nbsp;GbE / software stacks to 100&nbsp;GbE / cut-through switches / kernel
+        bypass (DPDK, io_uring); the <strong>InfiniBand ping-pong</strong> row sits at
+        the kernel-bypass floor (~1.5&nbsp;µs).</p>
+      <p><strong>WAN</strong> is the lone physics-bound row &mdash; the speed of light
+        in fiber sets a ~90&nbsp;ms floor over the 9,000&nbsp;km CA&harr;NL
+        great-circle, with the remaining headroom shrinking as direct submarine cables
+        (Marea, Dunant, Grace Hopper) replaced older multi-hop routes.</p>
+    `,
+    metrics: [
+      { id: "rdma",      name: "100 GbE / InfiniBand ping-pong, same rack", boxType: "100ns", newMetric: true },
+      { id: "network2k", name: "Send 2 KB over commodity network",          boxType: "100ns" },
+      { id: "rtt",       name: "Round trip within same datacenter (TCP)",   boxType: "10us"  },
+      { id: "wan",       name: "Packet round trip CA ↔",                    boxType: "ms",    cityDropdown: true },
+    ],
+  },
+  {
+    id: "storage",
+    name: "Storage",
+    icon: CAT_ICON_STORAGE,
+    info: `
+      <p><strong>NAND SSDs</strong> disrupted this panel: X25-M (2008) &rarr;
+        SATA (2011, ~500&nbsp;MB/s) &rarr; mainstream NVMe over PCIe (2017) &rarr; Gen4
+        NVMe (2020, ~15&nbsp;µs random, ~7&nbsp;GB/s). The random/sequential gap
+        collapsed from ~1000&times; to ~10&times;.</p>
+      <p>Spinning HDDs hit a <strong>mechanical floor</strong> by ~2010: 7200&nbsp;RPM
+        rotational latency is 4.17&nbsp;ms and seek is motor-bound, so random access
+        plateaued at 5&ndash;10&nbsp;ms; only outer-track bandwidth kept climbing
+        (~30 &rarr; ~200&nbsp;MB/s) thanks to shingled and HAMR recording. That's why
+        this page anchors HDD 1&nbsp;MB at 5&nbsp;ms (commodity 7200&nbsp;RPM) rather
+        than 15&nbsp;ms (archive/SMR).</p>
+    `,
+    metrics: [
+      { id: "ssdRand", name: "SSD random read",                   boxType: "10us" },
+      { id: "ssdMB",   name: "Read 1 MB sequentially from SSD",   boxType: "10us" },
+      { id: "seek",    name: "HDD seek",                          boxType: "ms"   },
+      { id: "diskMB",  name: "Read 1 MB sequentially from HDD",   boxType: "ms"   },
+    ],
+  },
+];
+
+// ns-per-block for each box type. Class name is the CSS modifier used on
+// each <span class="block <klass>">.
+// `px` is the per-block square dimension in pixels; sizes are roughly
+// log-sized so smaller units render as smaller squares. Must match the
+// `.block.<klass>` width/height in CSS.
+const BOX_TYPES = {
+  "ns":    { unit: 1,    klass: "ns",    px:  5 },
+  "100ns": { unit: 100,  klass: "us100", px:  8 },
+  "10us":  { unit: 1e4,  klass: "us10",  px: 11 },
+  "ms":    { unit: 1e6,  klass: "ms",    px: 14 },
+};
+
+// Maximum number of full blocks rendered for a single metric. Anything
+// beyond shows a "+N" marker. The cap exists so a single very long row
+// (e.g. WAN ≈ 130 ms = 130 red squares) doesn't drag the page out of
+// shape on small screens. 200 still leaves room for Colin's classic
+// "lots of squares" effect.
+const MAX_BLOCKS = 200;
+
+// Diff-based render: keep blocks that should still exist, fade-add new
+// ones, fade-remove surplus ones. Reused on every year-change so rapid
+// scrubbing produces smooth visual continuity rather than reflowing
+// hundreds of fresh DOM nodes each tick.
+const BLOCK_FADE_MS = 110;  // slightly longer than the 100 ms CSS transition
+
+function buildBlocks(container, ns, boxType) {
+  // Yank any nodes still in the DOM from a prior render's fade-out so
+  // they don't get re-counted as existing children. Their pending
+  // setTimeout removals will no-op against already-detached nodes.
+  for (const el of [...container.querySelectorAll(".removing")]) {
+    el.remove();
+  }
+
+  if (ns == null || ns <= 0) {
+    for (const el of [...container.children]) {
+      el.classList.add("removing");
+      setTimeout(() => el.remove(), BLOCK_FADE_MS);
+    }
+    return;
+  }
+
+  const { unit, klass, px } = BOX_TYPES[boxType];
+  const count = ns / unit;
+  const targetWhole = Math.min(MAX_BLOCKS, Math.floor(count));
+  const frac = count - Math.floor(count);
+  // Below 6 % of a full block the fractional sliver becomes pixel-noise.
+  const hasTargetFrac = count < MAX_BLOCKS && frac > 0.06;
+  const targetFracWidthPx = hasTargetFrac
+    ? Math.max(1, Math.round(px * frac))
+    : 0;
+  const hasTargetMore = count > MAX_BLOCKS;
+  const targetMoreText = hasTargetMore
+    ? "+" + Math.round(count - MAX_BLOCKS)
+    : "";
+
+  // Classify existing children. Whole blocks have no inline width;
+  // fractional blocks set style.width; the "+N" tail uses class .more.
+  const wholeEls = [];
+  let fracEl = null;
+  let moreEl = null;
+  for (const el of container.children) {
+    if (el.classList.contains("more")) {
+      moreEl = el;
+    } else if (el.style.width) {
+      fracEl = el;
+    } else {
+      wholeEls.push(el);
+    }
+  }
+
+  // Reconcile whole blocks. New blocks are inserted before any frac /
+  // more sibling so the trailing-position invariant holds.
+  if (wholeEls.length < targetWhole) {
+    const insertBefore = fracEl || moreEl || null;
+    for (let i = wholeEls.length; i < targetWhole; i++) {
+      const b = document.createElement("span");
+      b.className = "block " + klass + " entering";
+      container.insertBefore(b, insertBefore);
+      // RAF lets the browser paint once at opacity 0 before the class
+      // flip retargets the transition to the visible state.
+      requestAnimationFrame(() => b.classList.remove("entering"));
+    }
+  } else if (wholeEls.length > targetWhole) {
+    for (let i = targetWhole; i < wholeEls.length; i++) {
+      const el = wholeEls[i];
+      el.classList.add("removing");
+      setTimeout(() => el.remove(), BLOCK_FADE_MS);
+    }
+  }
+
+  // Reconcile fractional final block. If both sides have one, just
+  // retarget the inline width and let the CSS transition animate it.
+  if (hasTargetFrac && fracEl) {
+    fracEl.style.width = targetFracWidthPx + "px";
+  } else if (hasTargetFrac && !fracEl) {
+    const b = document.createElement("span");
+    b.className = "block " + klass + " entering";
+    b.style.width = targetFracWidthPx + "px";
+    container.insertBefore(b, moreEl);
+    requestAnimationFrame(() => b.classList.remove("entering"));
+  } else if (!hasTargetFrac && fracEl) {
+    fracEl.classList.add("removing");
+    setTimeout(() => fracEl.remove(), BLOCK_FADE_MS);
+  }
+
+  // Reconcile the "+N" tail. It's a text label, not a block, and only
+  // appears for extreme outliers (e.g. WAN > 200 ms), so we keep it
+  // instant rather than wiring transitions onto a distinct element type.
+  if (hasTargetMore && moreEl) {
+    moreEl.textContent = targetMoreText;
+  } else if (hasTargetMore && !moreEl) {
+    const tail = document.createElement("span");
+    tail.className = "more";
+    tail.textContent = targetMoreText;
+    container.appendChild(tail);
+  } else if (!hasTargetMore && moreEl) {
+    moreEl.remove();
+  }
+}
+
+//------- Number formatting -------
+
+// Values >= 1 µs are reported in MICROSECONDS for consistency so readers
+// can eyeball order-of-magnitude relationships across rows without doing
+// unit math (5,000 µs stays as µs rather than collapsing to 5 ms, so it
+// visibly sits between 150 µs and 130,000 µs). Sub-microsecond values
+// instead use NANOSECONDS, because "0.001 µs" / "0.080 µs" forces the
+// reader to count leading zeros to compare two cache rows -- "1 ns" /
+// "80 ns" is much easier to scan.
+function formatLatency(ns) {
+  if (ns < 1000) {
+    return { value: Math.round(ns).toLocaleString(), unit: "ns" };
+  }
+  const us = ns / 1000;
+  let value;
+  if (us < 10) {
+    value = us.toFixed(1);              // 1.0 .. 9.9
+  } else {
+    value = Math.round(us).toLocaleString();  // 10 .. 130,000
+  }
+  return { value, unit: "µs" };
+}
+
+//------- Era + insight (year-aware) -------
+
+function eraLabel(year) {
+  if (year < 1995) return "Pre-Web era";
+  if (year < 2000) return "Web 1.0 era";
+  if (year < 2005) return "Internet era";
+  if (year < 2012) return "Multicore era";
+  if (year < 2018) return "Cloud era";
+  if (year < 2022) return "Cloud-native era";
+  return "AI / NVMe era";
+}
+
+// Break insight prose at sentence boundaries so each sentence reads as
+// its own line. We use `<br>` rather than `<p>` because the insight box
+// is a single flex row with an icon -- new paragraphs would force the
+// icon onto its own line.
+function styleInsightBreaks(html) {
+  return html.replace(/\. (?=[A-Z<])/g, '.<br>');
+}
+
+function buildInsight(year, v) {
+  // Pick a single era-appropriate insight. We pre-decide which family of
+  // claims fits the year, then fill in numbers from the current data.
+  const f = formatLatency;
+  const fmt = ns => { const x = f(ns); return `<strong>${x.value} ${x.unit}</strong>`; };
+  const ratio = (a, b) => Math.round(a / b).toLocaleString();
+
+  // 1990 – 1999: Pre-Web and Web 1.0 era. The DRAM-cache gap is just
+  // opening up; LANs are 10 / 100 Mbps Ethernet; the Internet reaches
+  // homes via dial-up modems.
+  if (year < 2000) {
+    const r = ratio(v.mem, v.L1);
+    if (year < 1995) {
+      return `The memory wall hasn't arrived yet &mdash; an L1 hit (${fmt(v.L1)}) is only <strong>${r}×</strong> faster than main memory (${fmt(v.mem)}). <em>386 / 486-era CPUs run MS-DOS; LANs are 10 Mbps Ethernet; the Internet reaches homes through dial-up modems.</em>`;
+    }
+    return `Pentium-era clocks keep doubling and the DRAM-to-cache gap opens up: main memory (${fmt(v.mem)}) is now <strong>${r}×</strong> slower than an L1 hit (${fmt(v.L1)}). <em>The Web is the killer app; 100 Mbps Ethernet replaces 10 Mbps in the LAN; ISDN brings homes online above modem speeds.</em>`;
+  }
+
+  // 2000 – 2007: Memory plateau, clock plateau begins, SSDs still niche.
+  if (year < 2008) {
+    const r = ratio(v.mem, v.L1);
+    if (year < 2005) {
+      return `DRAM access has plateaued at ~100 ns while caches keep getting faster &mdash; main memory is now <strong>${r}×</strong> slower than L1. <em>Storage is still spinning rust; SSDs are research artifacts.</em>`;
+    }
+    return `Clock speeds plateaued in 2005. Single-core performance has been roughly constant for <strong>${year - 2005}</strong> year${year - 2005 === 1 ? "" : "s"}; performance gains now come from cores, caches, and SIMD, not megahertz.`;
+  }
+
+  // 2008 – 2014: SSDs go mainstream, replacing HDDs for random access.
+  if (year < 2015) {
+    return `Consumer SSDs are mainstream. An SSD random read (${fmt(v.ssdRand)}) is <strong>${ratio(v.seek, v.ssdRand)}×</strong> faster than an HDD seek (${fmt(v.seek)}) &mdash; the random-access gap that defined storage architecture for 50 years just collapsed.`;
+  }
+
+  // 2015 – 2021: NVMe + 10/25/40 GbE; network closes the gap on storage.
+  if (year < 2022) {
+    if (v.rtt && v.diskMB && v.rtt < v.diskMB) {
+      return `A datacenter network round trip (${fmt(v.rtt)}) is now <strong>${ratio(v.diskMB, v.rtt)}×</strong> faster than reading 1 MB off a local spinning disk (${fmt(v.diskMB)}). <em>Disaggregated storage starts to make economic sense.</em>`;
+    }
+    return `NVMe collapses the memory-to-storage gap. An SSD random read (${fmt(v.ssdRand)}) is only <strong>${ratio(v.ssdRand, v.mem)}×</strong> slower than a main-memory reference.`;
+  }
+
+  // 2022+: RDMA + NVMe; network beats local flash.
+  if (v.rdma && v.ssdRand && v.rdma < v.ssdRand) {
+    return `A 100 GbE / InfiniBand round trip (${fmt(v.rdma)}) is now faster than an NVMe random read (${fmt(v.ssdRand)}) &mdash; fetching from a neighbor's RAM beats reading your own SSD. <em>Both still have to cross the PCIe bus (${fmt(v.pcie)}) to reach the CPU, which is the new floor for any I/O.</em>`;
+  }
+  return `A datacenter round trip costs the same as <strong>${ratio(v.rtt, v.mem)}</strong> main-memory references. The "memory wall" lives on, just one network hop further out.`;
+}
+
+//------- DOM construction -------
+
+const $categories = document.getElementById("categories");
+const $insight = document.getElementById("insightBody");
+const $year = document.getElementById("yearValue");
+const $era = document.getElementById("yearEra");
+const $slider = document.getElementById("yearSlider");
+const $presets = document.getElementById("yearPresets");
+
+const rowRefs = {};   // id -> { row, value, vNum, vUnit, blocks, boxType }
+
+// Right-pointing chevron used on the per-category "Why these changed"
+// disclosure. Rotates 90deg via CSS when its containing <details> is open.
+const CHEVRON_SVG = `<svg class="cat-info-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4 2l4 4-4 4"/></svg>`;
+
+function buildCategories() {
+  for (const cat of CATEGORIES) {
+    const section = document.createElement("section");
+    section.className = "category";
+    section.dataset.cat = cat.id;
+
+    // Each category header is a <summary> inside a <details>; clicking
+    // anywhere on the header toggles the prose body, with all keyboard
+    // and screen-reader semantics handled by the platform.
+    const details = document.createElement("details");
+    details.className = "cat-info";
+
+    const summary = document.createElement("summary");
+    summary.className = "category-header";
+    summary.innerHTML =
+      `<span class="category-icon">${cat.icon}</span>` +
+      `<h2>${cat.name}</h2>` +
+      `<span class="cat-info-cue">Why these changed${CHEVRON_SVG}</span>`;
+    details.appendChild(summary);
+
+    if (cat.info) {
+      const body = document.createElement("div");
+      body.className = "cat-info-body";
+      body.innerHTML = cat.info;
+      details.appendChild(body);
+    }
+    section.appendChild(details);
+
+    const grid = document.createElement("div");
+    grid.className = "metrics";
+
+    for (const m of cat.metrics) {
+      const row = document.createElement("div");
+      row.className = "metric";
+
+      const name = document.createElement("div");
+      name.className = "name";
+      name.innerHTML = m.name + (m.newMetric
+        ? ' <span class="badge">2020s</span>'
+        : "");
+      if (m.cityDropdown) {
+        // Inline <select> styled as a typographic affordance: completes
+        // the row's label ("Packet round trip CA ↔ <city>") with a
+        // subtle chevron rather than a heavyweight form control.
+        // Cities are grouped by continent via <optgroup> so the open
+        // menu reads as a small geography reference rather than a flat
+        // list -- helpful when comparing e.g. "CA -> Africa" vs
+        // "CA -> Asia" routing differences.
+        const select = document.createElement("select");
+        select.className = "city-select";
+        select.setAttribute("aria-label", "Destination city for " + m.name);
+        let currentGroup = null;
+        let currentParent = select;
+        for (const c of CITIES) {
+          if (c.continent !== currentGroup) {
+            currentGroup = c.continent;
+            currentParent = document.createElement("optgroup");
+            currentParent.label = c.continent;
+            select.appendChild(currentParent);
+          }
+          const opt = document.createElement("option");
+          opt.value = c.id;
+          opt.textContent = c.name;
+          if (c.id === selectedWanCityId) opt.selected = true;
+          currentParent.appendChild(opt);
+        }
+        select.addEventListener("change", e => {
+          selectedWanCityId = e.target.value;
+          update(+$slider.value);
+        });
+        name.appendChild(select);
+      }
+      row.appendChild(name);
+
+      const value = document.createElement("div");
+      value.className = "value";
+      const vNum = document.createElement("span");
+      const vUnit = document.createElement("span");
+      vUnit.className = "unit";
+      value.appendChild(vNum);
+      value.appendChild(vUnit);
+      row.appendChild(value);
+
+      const blocks = document.createElement("div");
+      blocks.className = "blocks box-" + BOX_TYPES[m.boxType].klass;
+      row.appendChild(blocks);
+
+      grid.appendChild(row);
+      rowRefs[m.id] = { row, value, vNum, vUnit, blocks, boxType: m.boxType };
+    }
+    section.appendChild(grid);
+    $categories.appendChild(section);
+  }
+}
+
+// State retained across render() calls so we can detect what actually
+// changed between two slider positions and only pulse those bits. Plain
+// closures rather than refs.* fields because there's only one render()
+// in the page and one of each global element.
+const prevValueText = new Map();   // metric id -> last "value unit" text
+let prevInsightHTML = null;
+let prevYearText = null;
+const VALUE_PULSE_MS = 180;        // a hair longer than the 150 ms color transition
+const INSIGHT_DIM_MS = 120;        // matches CSS transition: opacity 120 ms
+const YEAR_PULSE_MS = 210;         // a hair longer than the 200 ms year color transition
+
+function render(year) {
+  // Fractional year drives the data layer for smooth scrubbing, but year
+  // text / era / insight only update on integer crossings -- otherwise
+  // every 0.1 step would re-trigger pulses and insight crossfades, which
+  // reads as flicker even when the underlying values are stable.
+  const displayYear = Math.round(year);
+  const newYearText = String(displayYear);
+  const isYearChanged = prevYearText !== null && prevYearText !== newYearText;
+  $year.textContent = newYearText;
+  $era.textContent = eraLabel(displayYear);
+  if (isYearChanged) {
+    $year.classList.add("changed");
+    setTimeout(() => $year.classList.remove("changed"), YEAR_PULSE_MS);
+  }
+  prevYearText = newYearText;
+
+  const v = metricsForYear(year);
+
+  for (const cat of CATEGORIES) {
+    for (const m of cat.metrics) {
+      const ns = v[m.id];
+      const refs = rowRefs[m.id];
+      if (ns == null) {
+        refs.row.classList.add("unavailable");
+        refs.vNum.textContent = "—";
+        refs.vUnit.textContent = "";
+        buildBlocks(refs.blocks, null, refs.boxType);
+        refs.blocks.removeAttribute("title");
+        prevValueText.set(m.id, "—");
+        continue;
+      }
+      refs.row.classList.remove("unavailable");
+      const l = formatLatency(ns);
+      const newText = l.value + " " + l.unit;
+      const prev = prevValueText.get(m.id);
+      refs.vNum.textContent = l.value;
+      refs.vUnit.textContent = l.unit;
+      if (prev !== undefined && prev !== newText) {
+        refs.value.classList.add("changed");
+        setTimeout(() => refs.value.classList.remove("changed"), VALUE_PULSE_MS);
+      }
+      prevValueText.set(m.id, newText);
+      buildBlocks(refs.blocks, ns, refs.boxType);
+      const unit = BOX_TYPES[refs.boxType].unit;
+      refs.blocks.title =
+        `${l.value} ${l.unit} = ${(ns / unit).toLocaleString(undefined, { maximumFractionDigits: 2 })} × ${formatBoxUnit(unit)}`;
+    }
+  }
+
+  // Both the insight prose AND the numbers it cites come from the
+  // rounded year: the metric rows update every 0.1-year scrub step, but
+  // the insight body should only re-render once per integer year so its
+  // figures (e.g. "round trip 300 µs") don't churn frame-to-frame during
+  // autoplay. metricsForYear() is cheap (lerps + lookups) so calling it
+  // a second time is fine; previously we passed the fractional `v` here,
+  // which is why values cited in the insight changed continuously.
+  const newInsightHTML = styleInsightBreaks(
+    buildInsight(displayYear, metricsForYear(displayYear)),
+  );
+  if (prevInsightHTML !== null && prevInsightHTML !== newInsightHTML) {
+    // Dip opacity, wait for the dim to land, swap text, then transition
+    // back. Total round-trip is ~240 ms which fits inside the 600 ms
+    // playback step with margin.
+    $insight.classList.add("dimming");
+    setTimeout(() => {
+      $insight.innerHTML = newInsightHTML;
+      $insight.classList.remove("dimming");
+    }, INSIGHT_DIM_MS);
+  } else if (prevInsightHTML === null) {
+    $insight.innerHTML = newInsightHTML;
+  }
+  prevInsightHTML = newInsightHTML;
+}
+
+function formatBoxUnit(unitNs) {
+  if (unitNs >= 1e6)  return "1 ms";
+  if (unitNs >= 1000) return (unitNs / 1000) + " µs";
+  return unitNs + " ns";
+}
+
+//------- Wiring -------
+
+const PRESET_YEARS = [1990, 1995, 2000, 2005, 2010, 2015, 2020, 2024, 2026];
+const YEAR_MIN = +$slider.min;
+const YEAR_MAX = +$slider.max;
+for (const y of PRESET_YEARS) {
+  const btn = document.createElement("button");
+  btn.textContent = y;
+  btn.dataset.year = y;
+  // Place each bubble at the same horizontal position the slider thumb
+  // sits at when value === y, so the bubbles literally line up with the
+  // slider track above.
+  btn.style.left = ((y - YEAR_MIN) / (YEAR_MAX - YEAR_MIN)) * 100 + "%";
+  btn.addEventListener("click", () => {
+    stopPlay();
+    $slider.value = y;
+    update(y);
+  });
+  $presets.appendChild(btn);
+}
+
+function update(year) {
+  const y = +year;
+  // Preset bubbles highlight against the rounded year so they light up
+  // anywhere within the half-year window centered on their position.
+  const rounded = Math.round(y);
+  for (const btn of $presets.querySelectorAll("button")) {
+    btn.classList.toggle("active", +btn.dataset.year === rounded);
+  }
+  render(y);
+  // Reflect the year in the URL hash so links can be shared. Round to
+  // integer: a fractional position like 2010.4 isn't a meaningful
+  // permalink target, and the hash regex only parses 4-digit years.
+  if (history && history.replaceState) {
+    history.replaceState(null, "", `#year=${Math.round(y)}`);
+  }
+}
+
+// Coalesce slider input events to once per animation frame. Without
+// this, a fast drag can fire 100+ input events per second, each
+// triggering a full render; the GPU is happy but each render starts
+// CSS transitions that get pre-empted before they're visible.
+let scrubRafScheduled = false;
+let scrubPendingYear = null;
+$slider.addEventListener("input", e => {
+  scrubPendingYear = +e.target.value;
+  if (scrubRafScheduled) return;
+  scrubRafScheduled = true;
+  requestAnimationFrame(() => {
+    scrubRafScheduled = false;
+    update(scrubPendingYear);
+  });
+});
+
+// -------- Play / pause animation --------
+// ~600 ms per year × 27 years = ~16 s end-to-end, slow enough to read each
+// row but fast enough to feel like an animation rather than a slideshow.
+// Advance continuously via requestAnimationFrame so the slider thumb and
+// every metric row flow smoothly between years rather than snapping in
+// 1-year jumps.
+const $playBtn = document.getElementById("playBtn");
+const $playSettingsBtn = document.getElementById("playSettingsBtn");
+const $playSettings = document.getElementById("playSettings");
+const $playSpeedRange = document.getElementById("playSpeedRange");
+const $playSpeedLabel = document.getElementById("playSpeedLabel");
+const $loopCheckbox = document.getElementById("loopCheckbox");
+
+// Base "1x" pace. Effective step is PLAY_STEP_MS_BASE / playSpeedMultiplier,
+// so 2x = half the ms per year (faster) and 0.5x = double (slower). The
+// previous fixed pace was 940 ms/year; doubled here so the natural 1.0x
+// default reads more like a documentary pan than a scrub.
+const PLAY_STEP_MS_BASE = 1880;
+const SETTINGS_KEY = "latencyPlaybackSettings/v1";
+
+let playRaf = null;
+let playStartTime = 0;
+let playStartYear = 0;
+let playSpeedMultiplier = 1;
+let shouldLoopPlayback = false;
+
+// Restore persisted settings (best effort -- localStorage can be disabled,
+// throw in private modes, etc.; never block UI on a parse error).
+try {
+  const raw = localStorage.getItem(SETTINGS_KEY);
+  if (raw) {
+    const saved = JSON.parse(raw);
+    if (typeof saved.speed === "number" && saved.speed >= 0.4 && saved.speed <= 2.5) {
+      playSpeedMultiplier = saved.speed;
+    }
+    if (typeof saved.loop === "boolean") {
+      shouldLoopPlayback = saved.loop;
+    }
+  }
+} catch (_) { /* ignore */ }
+
+function savePlaybackSettings() {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      speed: playSpeedMultiplier,
+      loop: shouldLoopPlayback,
+    }));
+  } catch (_) { /* ignore */ }
+}
+
+function currentPlayStepMs() {
+  return PLAY_STEP_MS_BASE / playSpeedMultiplier;
+}
+
+// Reflect persisted state into the controls before wiring change handlers
+// so we don't trigger spurious save() calls on initial population.
+$playSpeedRange.value = String(playSpeedMultiplier);
+$playSpeedLabel.textContent = playSpeedMultiplier.toFixed(1) + "×";
+$loopCheckbox.checked = shouldLoopPlayback;
+
+$playSpeedRange.addEventListener("input", e => {
+  playSpeedMultiplier = +e.target.value;
+  $playSpeedLabel.textContent = playSpeedMultiplier.toFixed(1) + "×";
+  // Reanchor the playback clock so the new speed takes effect mid-flight
+  // without snapping the slider or skipping years.
+  if (isPlayingTimeline()) {
+    playStartYear = +$slider.value;
+    playStartTime = performance.now();
+  }
+  savePlaybackSettings();
+});
+
+$loopCheckbox.addEventListener("change", e => {
+  shouldLoopPlayback = e.target.checked;
+  savePlaybackSettings();
+});
+
+function setPlaySettingsOpen(open) {
+  $playSettings.hidden = !open;
+  $playSettingsBtn.setAttribute("aria-expanded", open ? "true" : "false");
+}
+$playSettingsBtn.addEventListener("click", e => {
+  e.stopPropagation();
+  setPlaySettingsOpen($playSettings.hidden);
+});
+// Outside-click closes. We listen on document, but stopPropagation above
+// keeps clicks on the gear itself from immediately re-closing.
+document.addEventListener("click", e => {
+  if ($playSettings.hidden) return;
+  if ($playSettings.contains(e.target)) return;
+  if (e.target === $playSettingsBtn || $playSettingsBtn.contains(e.target)) return;
+  setPlaySettingsOpen(false);
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !$playSettings.hidden) {
+    setPlaySettingsOpen(false);
+    $playSettingsBtn.focus();
+  }
+});
+
+function isPlayingTimeline() { return playRaf !== null; }
+
+function setPlayButtonState(isPlaying) {
+  $playBtn.setAttribute("aria-pressed", isPlaying ? "true" : "false");
+  $playBtn.setAttribute("aria-label",
+    isPlaying ? "Pause timeline" : "Play timeline");
+}
+
+function stopPlay() {
+  if (playRaf !== null) {
+    cancelAnimationFrame(playRaf);
+    playRaf = null;
+  }
+  setPlayButtonState(false);
+}
+
+function playStep(now) {
+  if (playRaf === null) return;
+  const elapsed = now - playStartTime;
+  const rawTarget = playStartYear + elapsed / currentPlayStepMs();
+  // Setting .value programmatically does NOT fire the slider's "input"
+  // event, so update() is the only render trigger.
+  if (rawTarget >= YEAR_MAX) {
+    if (shouldLoopPlayback) {
+      // Snap back to start and reset the time origin; the next RAF tick
+      // resumes the animation from YEAR_MIN with no perceived pause.
+      $slider.value = YEAR_MIN;
+      update(YEAR_MIN);
+      playStartYear = YEAR_MIN;
+      playStartTime = now;
+      playRaf = requestAnimationFrame(playStep);
+      return;
+    }
+    $slider.value = YEAR_MAX;
+    update(YEAR_MAX);
+    stopPlay();
+    return;
+  }
+  $slider.value = rawTarget;
+  update(rawTarget);
+  playRaf = requestAnimationFrame(playStep);
+}
+
+function startPlay() {
+  // If we're parked at the end, rewind so pressing play always plays
+  // something visible.
+  let y = +$slider.value;
+  if (y >= YEAR_MAX) {
+    y = YEAR_MIN;
+    $slider.value = y;
+    update(y);
+  }
+  // Scroll the page so the scrubber sits at the top (its sticky position)
+  // AND the insight sits directly below it. We can't use
+  // scrubber.scrollIntoView(): the scrubber is `position: sticky`, so if
+  // the user scrolled down to read credits, the browser sees it already
+  // at the top of the viewport and the call becomes a no-op -- leaving
+  // the insight far below the fold. Instead, compute the absolute Y of
+  // the insight and subtract the scrubber's pinned height so the insight
+  // lands flush under the sticky scrubber.
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const scrubber = document.querySelector('.scrubber');
+  const insight = document.getElementById('insight');
+  if (scrubber && insight) {
+    const insightAbsY = window.pageYOffset + insight.getBoundingClientRect().top;
+    const STICKY_TOP = 8; // matches .scrubber { top: var(--s-2) }
+    const targetY = Math.max(0, insightAbsY - scrubber.offsetHeight - STICKY_TOP);
+    window.scrollTo({ top: targetY, behavior: reduce ? 'auto' : 'smooth' });
+  } else if (scrubber) {
+    scrubber.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  }
+  setPlayButtonState(true);
+  playStartYear = +$slider.value;
+  playStartTime = performance.now();
+  playRaf = requestAnimationFrame(playStep);
+}
+
+$playBtn.addEventListener("click", () => {
+  if (isPlayingTimeline()) stopPlay(); else startPlay();
+});
+
+// Any direct user interaction with the slider stops playback; preset
+// clicks are handled in their own click listener above. pointerdown
+// covers both mouse and touch; keydown covers arrow-key adjustments.
+$slider.addEventListener("pointerdown", stopPlay);
+$slider.addEventListener("keydown", stopPlay);
+
+// Parse #year=YYYY from URL if present.
+function initialYear() {
+  const m = location.hash.match(/year=(\d{4})/);
+  if (m) {
+    const y = +m[1];
+    if (y >= 1990 && y <= 2026) return y;
+  }
+  return 2026;
+}
+
+buildCategories();
+const startYear = initialYear();
+$slider.value = startYear;
+update(startYear);
+</script>
+</body>
+</html>
