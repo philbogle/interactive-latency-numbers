@@ -8,7 +8,7 @@ An interactive, drag-to-scrub timeline of Jeff Dean's famous latency numbers, ex
 
 ## What this is
 
-Jeff Dean's [original list](http://norvig.com/21-days.html#answers) (2002) and the canonical [interactive version by Colin Scott](https://colin-scott.github.io/personal_website/research/interactive_latency.html) (extended via Moore's-law-style formulas through ~2020) are the starting point. This page extends the timeline through 2026 and replaces the formulas for bandwidth-bound metrics — where pure exponential extrapolation produces increasingly fictional numbers — with year-anchored real-world measurements from hardware datasheets, peer-reviewed benchmarks, and published 2025–2026 references.
+Jeff Dean's [original list](http://norvig.com/21-days.html#answers) (2002) and the canonical [interactive version by Colin Scott](https://colin-scott.github.io/personal_website/research/interactive_latency.html) (extended via Moore's-law-style formulas through ~2020) inspired me to create a modern update. This page extends the timeline through 2026 and replaces the formulas for bandwidth-bound metrics — where pure exponential extrapolation produces increasingly fictional numbers — with year-anchored real-world measurements from hardware datasheets, peer-reviewed benchmarks, and published 2025–2026 references.
 
 Specifically:
 
@@ -21,7 +21,7 @@ See the in-page **Credits & Methodology** section (linked from the intro paragra
 
 ## Running locally
 
-It's a single self-contained HTML file — no build, no dependencies, no network calls:
+For ease of use, this is a single, self-contained HTML file without any dependencies or build.
 
 ```sh
 git clone https://github.com/philbogle/interactive-latency-numbers.git
